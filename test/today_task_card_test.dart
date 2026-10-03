@@ -29,6 +29,7 @@ void main() {
           selected: false,
           onSelect: () => selected = true,
           onToggleComplete: () => toggled = true,
+          onEdit: () {},
         ),
       ),
     ));

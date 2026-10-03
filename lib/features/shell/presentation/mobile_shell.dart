@@ -26,17 +26,19 @@ class _MobileShellState extends ConsumerState<MobileShell> {
     return Scaffold(
       backgroundColor: DayweaveColors.paper,
       appBar: AppBar(
+        toolbarHeight: 68,
+        titleSpacing: DayweaveSpacing.lg,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset('assets/images/dayweave-mark.webp',
-                width: 34, height: 34),
+                width: 30, height: 30),
             const SizedBox(width: DayweaveSpacing.sm),
             Text('dayweave',
                 style: Theme.of(context)
                     .textTheme
                     .headlineSmall
-                    ?.copyWith(fontSize: 26)),
+                    ?.copyWith(fontSize: 24)),
           ],
         ),
         actions: [
@@ -54,6 +56,8 @@ class _MobileShellState extends ConsumerState<MobileShell> {
       bottomNavigationBar: NavigationBarTheme(
         data: Theme.of(context).navigationBarTheme.copyWith(
               backgroundColor: DayweaveColors.paper,
+              surfaceTintColor: Colors.transparent,
+              shadowColor: Colors.transparent,
               indicatorColor: DayweaveColors.sage.withValues(alpha: .7),
               elevation: 0,
             ),

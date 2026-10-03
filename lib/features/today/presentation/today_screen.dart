@@ -8,6 +8,7 @@ import '../application/today_controller.dart';
 import '../application/today_intention_controller.dart';
 import '../application/today_state.dart';
 import 'widgets/today_task_card.dart';
+import 'widgets/today_task_form.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -18,17 +19,23 @@ class TodayScreen extends ConsumerStatefulWidget {
 class _TodayScreenState extends ConsumerState<TodayScreen> {
   late final TextEditingController _intentionController;
   late final FocusNode _intentionFocusNode;
+  late final TextEditingController _brainDumpController;
+  late final FocusNode _brainDumpFocusNode;
   @override
   void initState() {
     super.initState();
     _intentionController = TextEditingController();
     _intentionFocusNode = FocusNode();
+    _brainDumpController = TextEditingController();
+    _brainDumpFocusNode = FocusNode();
   }
 
   @override
   void dispose() {
     _intentionController.dispose();
     _intentionFocusNode.dispose();
+    _brainDumpController.dispose();
+    _brainDumpFocusNode.dispose();
     super.dispose();
   }
 
@@ -68,13 +75,35 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         onRetry:
                             ref.read(todayControllerProvider.notifier).load))
               else ...[
-                SliverToBoxAdapter(child: _RouteHeader(selectors: selectors)),
+                SliverToBoxAdapter(
+                    child: _RouteHeader(
+                  selectors: selectors,
+                  controller: _brainDumpController,
+                  focusNode: _brainDumpFocusNode,
+                  onSubmit: _openCreate,
+                )),
+                SliverToBoxAdapter(
+                    child: _SearchFilterEntry(
+                  activeCount: _activeFilterCount(state),
+                  onTap: () => _showSearchFilterSheet(context, state),
+                )),
                 if (selectors.todayTasks.isEmpty)
                   const SliverToBoxAdapter(child: _EmptyRouteState())
-                else
+                else if (selectors.filteredTasks.isEmpty)
+                  const SliverToBoxAdapter(child: _FilteredEmptyState())
+                else ...[
                   ..._sectionSlivers(selectors),
+                  if (selectors.completedCount == selectors.totalCount)
+                    const SliverToBoxAdapter(child: _CompletedDayState()),
+                ],
                 const SliverToBoxAdapter(child: _BreathingRoomFooter()),
-                SliverToBoxAdapter(child: _UpNextCard(task: selectors.upNext)),
+                SliverToBoxAdapter(
+                    child: _UpNextCard(
+                        task: selectors.completedCount == selectors.totalCount
+                            ? null
+                            : selectors.upNext,
+                        completed: selectors.todayTasks.isNotEmpty &&
+                            selectors.completedCount == selectors.totalCount)),
               ],
               const SliverToBoxAdapter(
                   child: SizedBox(height: DayweaveSpacing.xl)),
@@ -84,27 +113,31 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   List<Widget> _sectionSlivers(TodaySelectors selectors) => [
-        _sectionSliver(selectors, TaskSection.morning, 'Morning'),
+        _sectionSliver(selectors, TaskSection.morning, 'Morning', first: true),
         _sectionSliver(selectors, TaskSection.midday, 'Midday'),
         _sectionSliver(selectors, TaskSection.afternoon, 'Afternoon'),
       ];
   Widget _sectionSliver(
-      TodaySelectors selectors, TaskSection section, String label) {
+      TodaySelectors selectors, TaskSection section, String label,
+      {bool first = false}) {
     final tasks = selectors.tasksFor(section);
     if (tasks.isEmpty) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
     return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(
-          DayweaveSpacing.lg, DayweaveSpacing.md, DayweaveSpacing.lg, 0),
+      padding: EdgeInsets.fromLTRB(
+          DayweaveSpacing.lg,
+          first ? DayweaveSpacing.sm : DayweaveSpacing.md,
+          DayweaveSpacing.lg,
+          0),
       sliver: SliverToBoxAdapter(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(_sectionIcon(section),
-                size: 19, color: _sectionColor(section)),
-            const SizedBox(width: DayweaveSpacing.sm),
+                size: 16, color: _sectionColor(section)),
+            const SizedBox(width: 6),
             Text(label,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     letterSpacing: 1.2, fontWeight: FontWeight.w700)),
@@ -114,14 +147,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         ]),
         const SizedBox(height: DayweaveSpacing.sm),
         ...tasks.map((task) => Padding(
-              padding: const EdgeInsets.only(bottom: DayweaveSpacing.sm),
+              padding: const EdgeInsets.only(bottom: DayweaveSpacing.xs),
               child: TodayTaskCard(
                   task: task,
                   selected: task.id == selectors.state.activeTaskId,
                   onSelect: () => ref
                       .read(todayControllerProvider.notifier)
                       .selectTask(task.id),
-                  onToggleComplete: () => _toggleTask(task)),
+                  onToggleComplete: () => _toggleTask(task),
+                  onEdit: () => _openEdit(task)),
             )),
       ])),
     );
@@ -145,6 +179,53 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         ? controller.uncompleteTask(task.id)
         : controller.completeTask(task.id));
   }
+
+  Future<void> _openCreate([String title = '']) async {
+    if (title.trim().isEmpty) return;
+    _brainDumpController.clear();
+    await showTodayTaskFormSheet(
+      context: context,
+      today: ref.read(todayControllerProvider).date,
+      initial: defaultTodayTaskDraft(ref.read(todayControllerProvider).date,
+          title: title.trim()),
+      onSave: (draft) =>
+          ref.read(todayControllerProvider.notifier).createTask(draft),
+    );
+  }
+
+  Future<void> _openEdit(Task task) async {
+    await showTodayTaskFormSheet(
+      context: context,
+      today: ref.read(todayControllerProvider).date,
+      editing: task,
+      onSave: (draft) =>
+          ref.read(todayControllerProvider.notifier).updateTask(task.id, draft),
+      onDelete: () =>
+          ref.read(todayControllerProvider.notifier).deleteTask(task.id),
+    );
+  }
+
+  int _activeFilterCount(TodayState state) =>
+      (state.searchQuery.trim().isEmpty ? 0 : 1) +
+      (state.statusFilter == TodayStatusFilter.all ? 0 : 1) +
+      (state.energyFilter == TodayEnergyFilter.all ? 0 : 1) +
+      (state.sectionFilter == TodaySectionFilter.all ? 0 : 1);
+
+  Future<void> _showSearchFilterSheet(
+      BuildContext context, TodayState state) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: DayweaveColors.paper,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => _SearchFilterSheet(
+        activeCount: _activeFilterCount(state),
+      ),
+    );
+  }
 }
 
 class _TodayHeader extends StatelessWidget {
@@ -154,10 +235,24 @@ class _TodayHeader extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(DayweaveSpacing.lg,
             DayweaveSpacing.sm, DayweaveSpacing.lg, DayweaveSpacing.md),
-        child: Text(
-            MaterialLocalizations.of(context)
-                .formatFullDate(date.asLocalDateTime),
-            style: Theme.of(context).textTheme.titleMedium),
+        child: Row(children: [
+          Expanded(
+            child: Text(
+                MaterialLocalizations.of(context)
+                    .formatFullDate(date.asLocalDateTime),
+                style: Theme.of(context).textTheme.titleMedium),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Today options',
+            icon: const Icon(Icons.more_horiz),
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(
+                  enabled: false, value: 'clear', child: Text('Clear View')),
+              PopupMenuItem<String>(
+                  enabled: false, value: 'share', child: Text('Share View')),
+            ],
+          ),
+        ]),
       );
 }
 
@@ -178,65 +273,73 @@ class _MorningCheckIn extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.lg),
-      padding: const EdgeInsets.symmetric(
-          horizontal: DayweaveSpacing.xl, vertical: DayweaveSpacing.lg),
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
       decoration: const BoxDecoration(
           color: DayweaveColors.bluePaper, borderRadius: DayweaveRadii.lg),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const _SectionLabel(
-            icon: Icons.auto_awesome_outlined, text: 'MORNING CHECK-IN'),
-        const SizedBox(height: DayweaveSpacing.md),
-        Text(state.value,
-            style: text.displayMedium?.copyWith(fontSize: 34, height: 1.08)),
-        const SizedBox(height: DayweaveSpacing.sm),
-        Text(
-            'A little direction goes a long way. What would make today feel well spent?',
-            style: text.bodyLarge?.copyWith(fontSize: 16, height: 1.45)),
-        const SizedBox(height: DayweaveSpacing.lg),
-        Row(children: [
-          const Icon(Icons.edit_outlined,
-              size: 20, color: DayweaveColors.marigold),
-          const SizedBox(width: DayweaveSpacing.sm),
-          Expanded(
-              child: TextSelectionTheme(
-                  data: const TextSelectionThemeData(
-                      cursorColor: DayweaveColors.marigold,
-                      selectionHandleColor: DayweaveColors.marigold),
-                  child: TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      enabled: !state.isLoading,
-                      onChanged: onChanged,
-                      minLines: 1,
-                      maxLines: 2,
-                      style: text.bodyLarge,
-                      decoration: const InputDecoration(
-                          isDense: true,
-                          filled: false,
-                          hintText: 'Set an intention for today',
-                          contentPadding:
-                              EdgeInsets.only(bottom: DayweaveSpacing.xs),
-                          border: UnderlineInputBorder(
-                              borderSide:
-                                  BorderSide(color: DayweaveColors.inkSoft)),
-                          enabledBorder: UnderlineInputBorder(
-                              borderSide:
-                                  BorderSide(color: DayweaveColors.marigold)),
-                          focusedBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(
-                                  color: DayweaveColors.marigold,
-                                  width: 1.5)))))),
+        const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          _SectionLabel(text: 'MORNING CHECK-IN'),
+          Icon(Icons.auto_awesome_outlined,
+              size: 18, color: DayweaveColors.marigold),
         ]),
+        const SizedBox(height: 14),
+        Text(state.value,
+            style: text.displayMedium?.copyWith(fontSize: 31, height: 1.04)),
+        const SizedBox(height: 7),
+        Text('A little direction goes a long way.',
+            style: text.bodyLarge?.copyWith(fontSize: 15, height: 1.3)),
+        const SizedBox(height: 14),
+        Container(
+          decoration: const BoxDecoration(
+            border: Border(
+              top: BorderSide(color: Color(0x55D9DED8)),
+              bottom: BorderSide(color: Color(0x55D9DED8)),
+            ),
+          ),
+          child: Row(children: [
+            const Icon(Icons.edit_outlined,
+                size: 17, color: DayweaveColors.inkSoft),
+            const SizedBox(width: 6),
+            Expanded(
+                child: TextSelectionTheme(
+                    data: const TextSelectionThemeData(
+                        cursorColor: DayweaveColors.marigold,
+                        selectionHandleColor: DayweaveColors.marigold),
+                    child: TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        enabled: !state.isLoading,
+                        onChanged: onChanged,
+                        minLines: 1,
+                        maxLines: 2,
+                        style: text.bodyLarge?.copyWith(
+                            fontSize: 14, color: DayweaveColors.inkSoft),
+                        decoration: const InputDecoration(
+                            isDense: true,
+                            filled: false,
+                            hintText: 'Set an intention for today',
+                            contentPadding: EdgeInsets.symmetric(vertical: 4),
+                            border: UnderlineInputBorder(
+                                borderSide:
+                                    BorderSide(color: Color(0x55D9DED8))),
+                            enabledBorder: UnderlineInputBorder(
+                                borderSide:
+                                    BorderSide(color: Color(0x55D9DED8))),
+                            focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(
+                                    color: Color(0xB3E8A229), width: 1)))))),
+          ]),
+        ),
         if (state.isLoading || state.isSaving) ...[
-          const SizedBox(height: DayweaveSpacing.sm),
-          const LinearProgressIndicator(minHeight: 2)
+          const SizedBox(height: 6),
+          Text('Saving…', style: text.bodyMedium?.copyWith(fontSize: 11))
         ],
         if (state.error != null) ...[
           const SizedBox(height: DayweaveSpacing.sm),
           Text('Your intention could not be saved. Please try again.',
               style: text.bodyMedium?.copyWith(color: DayweaveColors.coral))
         ],
-        const SizedBox(height: DayweaveSpacing.lg),
+        const SizedBox(height: 14),
         _ProgressSummary(selectors: selectors),
       ]),
     );
@@ -246,21 +349,74 @@ class _MorningCheckIn extends StatelessWidget {
 class _ProgressSummary extends StatelessWidget {
   const _ProgressSummary({required this.selectors});
   final TodaySelectors selectors;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label:
+            '${selectors.progress}% complete, ${selectors.completedCount} of ${selectors.totalCount} tasks, ${selectors.remainingMinutes} minutes left',
+        child: Row(children: [
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: Theme.of(context).textTheme.bodyMedium,
+                children: [
+                  TextSpan(
+                      text: '${selectors.progress}% ',
+                      style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w700,
+                          color: DayweaveColors.ink)),
+                  const TextSpan(text: 'clear', style: TextStyle(fontSize: 14)),
+                ],
+              ),
+            ),
+          ),
+          Container(width: 1, height: 34, color: DayweaveColors.line),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 20),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                        '${selectors.completedCount} of ${selectors.totalCount} tasks',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontSize: 14)),
+                    const SizedBox(height: 2),
+                    Text('${selectors.remainingMinutes} min left',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(fontSize: 13)),
+                  ]),
+            ),
+          ),
+        ]),
+      );
+}
+
+// Kept temporarily for comparison while the presentation change is reviewed.
+// ignore: unused_element
+class _LegacyProgressSummary extends StatelessWidget {
+  const _LegacyProgressSummary({required this.selectors});
+  final TodaySelectors selectors;
   @override
   Widget build(BuildContext context) => Row(children: [
         Semantics(
             label:
                 '${selectors.progress}% complete, ${selectors.completedCount} of ${selectors.totalCount} tasks',
             child: SizedBox(
-                height: 84,
-                width: 84,
+                height: 78,
+                width: 78,
                 child: Stack(alignment: Alignment.center, children: [
                   SizedBox(
-                      height: 84,
-                      width: 84,
+                      height: 78,
+                      width: 78,
                       child: CircularProgressIndicator(
                           value: selectors.progress / 100,
-                          strokeWidth: 8,
+                          strokeWidth: 7,
                           backgroundColor: DayweaveColors.line,
                           color: DayweaveColors.marigold)),
                   Column(mainAxisSize: MainAxisSize.min, children: [
@@ -288,8 +444,15 @@ class _ProgressSummary extends StatelessWidget {
 }
 
 class _RouteHeader extends StatelessWidget {
-  const _RouteHeader({required this.selectors});
+  const _RouteHeader(
+      {required this.selectors,
+      required this.controller,
+      required this.focusNode,
+      required this.onSubmit});
   final TodaySelectors selectors;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onSubmit;
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(DayweaveSpacing.lg,
@@ -323,21 +486,184 @@ class _RouteHeader extends StatelessWidget {
             }
             return Row(children: [Expanded(child: heading), remaining]);
           }),
+          const SizedBox(height: DayweaveSpacing.lg),
+          TextField(
+            controller: controller,
+            focusNode: focusNode,
+            textInputAction: TextInputAction.done,
+            onSubmitted: onSubmit,
+            decoration: InputDecoration(
+              isDense: true,
+              filled: false,
+              hintStyle: Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(fontSize: 16, color: DayweaveColors.inkSoft),
+              hintText: 'What’s taking up space?',
+              prefixIcon: const Icon(Icons.add,
+                  color: DayweaveColors.marigold, size: 19),
+              suffixIcon: IconButton(
+                tooltip: 'Add task',
+                onPressed: () => onSubmit(controller.text),
+                icon: const Icon(Icons.arrow_forward,
+                    size: 19, color: DayweaveColors.inkSoft),
+              ),
+              border: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: DayweaveColors.line)),
+              enabledBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: DayweaveColors.line)),
+              focusedBorder: const UnderlineInputBorder(
+                  borderSide:
+                      BorderSide(color: DayweaveColors.marigold, width: 1.5)),
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: DayweaveSpacing.sm, vertical: DayweaveSpacing.sm),
+            ),
+          ),
+        ]),
+      );
+}
+
+class _SearchFilterEntry extends StatelessWidget {
+  const _SearchFilterEntry({required this.activeCount, required this.onTap});
+  final int activeCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+            DayweaveSpacing.lg, 0, DayweaveSpacing.lg, DayweaveSpacing.sm),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: DayweaveRadii.sm,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.sm),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: DayweaveColors.line)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.search, size: 19, color: DayweaveColors.inkSoft),
+              const SizedBox(width: DayweaveSpacing.sm),
+              Expanded(
+                child: Text('Search & filter',
+                    style: Theme.of(context).textTheme.bodyLarge),
+              ),
+              if (activeCount > 0)
+                Text('· $activeCount active',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: DayweaveColors.inkSoft)),
+              const SizedBox(width: DayweaveSpacing.sm),
+              const Icon(Icons.arrow_forward,
+                  size: 18, color: DayweaveColors.inkSoft),
+            ]),
+          ),
+        ),
+      );
+}
+
+class _SearchFilterSheet extends StatelessWidget {
+  const _SearchFilterSheet({required this.activeCount});
+  final int activeCount;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(
+            DayweaveSpacing.lg, DayweaveSpacing.md, DayweaveSpacing.lg,
+            DayweaveSpacing.xl),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: DayweaveColors.line,
+                  borderRadius: BorderRadius.circular(4)),
+            ),
+          ),
+          const SizedBox(height: DayweaveSpacing.lg),
+          Text('Search tasks',
+              style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: DayweaveSpacing.md),
+          const _DisabledSearchField(),
+          const SizedBox(height: DayweaveSpacing.lg),
+          const _FilterGroup(label: 'Status', options: ['All', 'Active', 'Completed']),
+          const _FilterGroup(label: 'Energy', options: ['All', 'Deep', 'Light', 'Social']),
+          const _FilterGroup(label: 'Section', options: ['All', 'Morning', 'Midday', 'Afternoon']),
+          const SizedBox(height: DayweaveSpacing.sm),
+          TextButton.icon(
+            onPressed: activeCount == 0 ? null : null,
+            icon: const Icon(Icons.refresh, size: 17),
+            label: const Text('Clear filters'),
+          ),
+          const SizedBox(height: DayweaveSpacing.sm),
+          Text('Search and filtering will be available here.',
+              style: Theme.of(context).textTheme.bodySmall),
+        ]),
+      );
+}
+
+class _DisabledSearchField extends StatelessWidget {
+  const _DisabledSearchField();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        height: 50,
+        padding: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.md),
+        decoration: BoxDecoration(
+          color: DayweaveColors.card,
+          border: Border.all(color: DayweaveColors.line),
+          borderRadius: DayweaveRadii.md,
+        ),
+        child: Row(children: [
+          const Icon(Icons.search, color: DayweaveColors.inkSoft),
+          const SizedBox(width: DayweaveSpacing.sm),
+          Text('Search tasks', style: Theme.of(context).textTheme.bodyLarge),
+          const Spacer(),
+          const Icon(Icons.close, size: 18, color: DayweaveColors.line),
+        ]),
+      );
+}
+
+class _FilterGroup extends StatelessWidget {
+  const _FilterGroup({required this.label, required this.options});
+  final String label;
+  final List<String> options;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: DayweaveSpacing.md),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: DayweaveColors.inkSoft, letterSpacing: 1.1)),
+          const SizedBox(height: DayweaveSpacing.sm),
+          Wrap(
+            spacing: DayweaveSpacing.sm,
+            runSpacing: DayweaveSpacing.sm,
+            children: options
+                .map((option) => Container(
+                      constraints: const BoxConstraints(minHeight: 44),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: DayweaveSpacing.md, vertical: 10),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: DayweaveColors.line),
+                        borderRadius: DayweaveRadii.sm,
+                      ),
+                      child: Text(option,
+                          style: Theme.of(context).textTheme.bodyMedium),
+                    ))
+                .toList(),
+          ),
         ]),
       );
 }
 
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.text, this.icon});
+  const _SectionLabel({required this.text});
   final String text;
-  final IconData? icon;
   @override
   Widget build(BuildContext context) =>
       Row(mainAxisSize: MainAxisSize.min, children: [
-        if (icon != null) ...[
-          Icon(icon, size: 18, color: DayweaveColors.marigold),
-          const SizedBox(width: DayweaveSpacing.sm)
-        ],
         Text(text,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: DayweaveColors.inkSoft,
@@ -349,30 +675,59 @@ class _SectionLabel extends StatelessWidget {
 class _EmptyRouteState extends StatelessWidget {
   const _EmptyRouteState();
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.lg),
-        padding: const EdgeInsets.symmetric(
-            horizontal: DayweaveSpacing.lg, vertical: DayweaveSpacing.lg),
-        decoration: BoxDecoration(
-            color: DayweaveColors.card,
-            borderRadius: DayweaveRadii.md,
-            border: Border.all(color: DayweaveColors.line)),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const CircleAvatar(
-              radius: 21,
-              backgroundColor: DayweaveColors.paper,
-              foregroundColor: DayweaveColors.marigold,
-              child: Icon(Icons.add, size: 28)),
-          const SizedBox(height: DayweaveSpacing.md),
-          Text('Your route starts here.',
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+            DayweaveSpacing.lg, 0, DayweaveSpacing.lg, DayweaveSpacing.md),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(height: 1, color: DayweaveColors.line),
+          const SizedBox(height: DayweaveSpacing.xl),
+          Text('Your route is open.',
               style: Theme.of(context)
                   .textTheme
                   .headlineSmall
-                  ?.copyWith(fontSize: 26)),
-          const SizedBox(height: DayweaveSpacing.sm),
-          Text('When you are ready, give today one small thing to hold.',
-              textAlign: TextAlign.center,
+                  ?.copyWith(fontSize: 25)),
+          const SizedBox(height: DayweaveSpacing.xs),
+          Text(
+              'Capture one thought above, then give it a time and a little shape.',
               style: Theme.of(context).textTheme.bodyLarge),
+        ]),
+      );
+}
+
+class _FilteredEmptyState extends StatelessWidget {
+  const _FilteredEmptyState();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+            DayweaveSpacing.lg, DayweaveSpacing.md, DayweaveSpacing.lg, 0),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('No tasks match',
+              style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: DayweaveSpacing.xs),
+          Text('Try a different search or clear your filters.',
+              style: Theme.of(context).textTheme.bodyLarge),
+          const SizedBox(height: DayweaveSpacing.sm),
+          const TextButton(onPressed: null, child: Text('Clear filters')),
+        ]),
+      );
+}
+
+class _CompletedDayState extends StatelessWidget {
+  const _CompletedDayState();
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+            DayweaveSpacing.lg, DayweaveSpacing.md, DayweaveSpacing.lg, 0),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: Text('The route is complete.\nYou gave today some shape.',
+                style: Theme.of(context).textTheme.bodyLarge),
+          ),
+          const OutlinedButton(
+            onPressed: null,
+            child: Text('Reflect'),
+          ),
         ]),
       );
 }
@@ -382,7 +737,7 @@ class _BreathingRoomFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(DayweaveSpacing.lg,
-            DayweaveSpacing.xl, DayweaveSpacing.lg, DayweaveSpacing.xl),
+            DayweaveSpacing.lg, DayweaveSpacing.lg, DayweaveSpacing.md),
         child: Row(children: [
           const Icon(Icons.air, color: DayweaveColors.inkSoft),
           const SizedBox(width: DayweaveSpacing.md),
@@ -395,12 +750,14 @@ class _BreathingRoomFooter extends StatelessWidget {
 }
 
 class _UpNextCard extends StatelessWidget {
-  const _UpNextCard({required this.task});
+  const _UpNextCard({required this.task, this.completed = false});
   final Task? task;
+  final bool completed;
   @override
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.lg),
-        padding: const EdgeInsets.all(DayweaveSpacing.lg),
+        padding: const EdgeInsets.symmetric(
+            horizontal: DayweaveSpacing.lg, vertical: DayweaveSpacing.sm),
         decoration: const BoxDecoration(
             color: DayweaveColors.sage, borderRadius: DayweaveRadii.lg),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -411,13 +768,22 @@ class _UpNextCard extends StatelessWidget {
             Spacer(),
             Icon(Icons.eco_outlined, color: DayweaveColors.inkSoft)
           ]),
-          const SizedBox(height: DayweaveSpacing.lg),
-          if (task == null) ...[
+          const SizedBox(height: DayweaveSpacing.xs),
+          if (completed) ...[
+            Text('The route is complete.',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(fontSize: 23)),
+            const SizedBox(height: DayweaveSpacing.sm),
+            Text('You gave today some shape.',
+                style: Theme.of(context).textTheme.bodyLarge)
+          ] else if (task == null) ...[
             Text('Nothing pressing.',
                 style: Theme.of(context)
                     .textTheme
                     .headlineSmall
-                    ?.copyWith(fontSize: 27)),
+                    ?.copyWith(fontSize: 23)),
             const SizedBox(height: DayweaveSpacing.sm),
             Text('You made it to the other side of the list.',
                 style: Theme.of(context).textTheme.bodyLarge)
@@ -426,14 +792,19 @@ class _UpNextCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: DayweaveSpacing.sm),
             Text(task!.title,
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineSmall
-                    ?.copyWith(fontSize: 27)),
-            if (task!.note.isNotEmpty) ...[
-              const SizedBox(height: DayweaveSpacing.xs),
-              Text(task!.note, style: Theme.of(context).textTheme.bodyLarge)
-            ]
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: DayweaveSpacing.sm),
+            Row(children: [
+              OutlinedButton.icon(
+                onPressed: null,
+                icon: const Icon(Icons.play_arrow, size: 17),
+                label: const Text('Focus'),
+              ),
+              const SizedBox(width: DayweaveSpacing.sm),
+              const TextButton(onPressed: null, child: Text('Later')),
+            ]),
           ],
         ]),
       );
