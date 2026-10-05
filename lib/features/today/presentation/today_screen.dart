@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/date_time/dayweave_date_time.dart';
 import '../../../core/theme/dayweave_theme.dart';
 import '../../../models/task.dart';
+import '../../focus/presentation/focus_screen.dart';
 import '../application/today_controller.dart';
 import '../application/today_intention_controller.dart';
 import '../application/today_state.dart';
@@ -103,7 +104,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                             ? null
                             : selectors.upNext,
                         completed: selectors.todayTasks.isNotEmpty &&
-                            selectors.completedCount == selectors.totalCount)),
+                            selectors.completedCount == selectors.totalCount,
+                        onFocus: _openFocusPreview)),
               ],
               const SliverToBoxAdapter(
                   child: SizedBox(height: DayweaveSpacing.xl)),
@@ -203,6 +205,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       onDelete: () =>
           ref.read(todayControllerProvider.notifier).deleteTask(task.id),
     );
+  }
+
+  void _openFocusPreview() {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => const FocusScreen(),
+    ));
   }
 
   int _activeFilterCount(TodayState state) =>
@@ -591,13 +599,15 @@ class _SearchFilterSheet extends StatelessWidget {
           const _FilterGroup(label: 'Section', options: ['All', 'Morning', 'Midday', 'Afternoon']),
           const SizedBox(height: DayweaveSpacing.sm),
           TextButton.icon(
-            onPressed: activeCount == 0 ? null : null,
+            onPressed: () {},
+            style: TextButton.styleFrom(
+              foregroundColor: DayweaveColors.marigold,
+              minimumSize: const Size(44, 44),
+              padding: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.sm),
+            ),
             icon: const Icon(Icons.refresh, size: 17),
             label: const Text('Clear filters'),
           ),
-          const SizedBox(height: DayweaveSpacing.sm),
-          Text('Search and filtering will be available here.',
-              style: Theme.of(context).textTheme.bodySmall),
         ]),
       );
 }
@@ -708,7 +718,15 @@ class _FilteredEmptyState extends StatelessWidget {
           Text('Try a different search or clear your filters.',
               style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: DayweaveSpacing.sm),
-          const TextButton(onPressed: null, child: Text('Clear filters')),
+          TextButton(
+            onPressed: () {},
+            style: TextButton.styleFrom(
+              foregroundColor: DayweaveColors.marigold,
+              minimumSize: const Size(44, 44),
+              padding: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.sm),
+            ),
+            child: const Text('Clear filters'),
+          ),
         ]),
       );
 }
@@ -750,8 +768,10 @@ class _BreathingRoomFooter extends StatelessWidget {
 }
 
 class _UpNextCard extends StatelessWidget {
-  const _UpNextCard({required this.task, this.completed = false});
+  const _UpNextCard(
+      {required this.task, required this.onFocus, this.completed = false});
   final Task? task;
+  final VoidCallback onFocus;
   final bool completed;
   @override
   Widget build(BuildContext context) => Container(
@@ -798,7 +818,7 @@ class _UpNextCard extends StatelessWidget {
             const SizedBox(height: DayweaveSpacing.sm),
             Row(children: [
               OutlinedButton.icon(
-                onPressed: null,
+                onPressed: onFocus,
                 icon: const Icon(Icons.play_arrow, size: 17),
                 label: const Text('Focus'),
               ),
