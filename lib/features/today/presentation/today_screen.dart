@@ -10,6 +10,8 @@ import '../application/today_intention_controller.dart';
 import '../application/today_state.dart';
 import 'widgets/today_task_card.dart';
 import 'widgets/today_task_form.dart';
+import 'widgets/today_reflection_card.dart';
+import 'widgets/today_reflection_screen.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -99,13 +101,19 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 ],
                 const SliverToBoxAdapter(child: _BreathingRoomFooter()),
                 SliverToBoxAdapter(
-                    child: _UpNextCard(
+                    child: _WebUpNextCard(
                         task: selectors.completedCount == selectors.totalCount
                             ? null
                             : selectors.upNext,
                         completed: selectors.todayTasks.isNotEmpty &&
                             selectors.completedCount == selectors.totalCount,
                         onFocus: _openFocusPreview)),
+              SliverToBoxAdapter(
+                  child: TodayReflectionCard(
+                    onOpen: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) => const TodayReflectionScreen(),
+                    )),
+                  )),
               ],
               const SliverToBoxAdapter(
                   child: SizedBox(height: DayweaveSpacing.xl)),
@@ -284,7 +292,7 @@ class _MorningCheckIn extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
       decoration: const BoxDecoration(
           color: DayweaveColors.bluePaper, borderRadius: DayweaveRadii.lg),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           _SectionLabel(text: 'MORNING CHECK-IN'),
           Icon(Icons.auto_awesome_outlined,
@@ -767,12 +775,12 @@ class _BreathingRoomFooter extends StatelessWidget {
       );
 }
 
+// ignore: unused_element
 class _UpNextCard extends StatelessWidget {
-  const _UpNextCard(
-      {required this.task, required this.onFocus, this.completed = false});
+  const _UpNextCard({required this.task, required this.onFocus});
   final Task? task;
   final VoidCallback onFocus;
-  final bool completed;
+  final bool completed = false;
   @override
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.lg),
@@ -828,6 +836,101 @@ class _UpNextCard extends StatelessWidget {
           ],
         ]),
       );
+}
+
+class _WebUpNextCard extends StatelessWidget {
+  const _WebUpNextCard({required this.task, required this.onFocus, this.completed = false});
+
+  final Task? task;
+  final VoidCallback onFocus;
+  final bool completed;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeTask = task;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.lg),
+      clipBehavior: Clip.antiAlias,
+      decoration: const BoxDecoration(
+        color: DayweaveColors.sage,
+        borderRadius: DayweaveRadii.lg,
+        boxShadow: [BoxShadow(color: Color(0x1A243B32), offset: Offset(0, 5), blurRadius: 14)],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 17, 20, 12),
+          child: Row(children: [
+            const Icon(Icons.circle, size: 12, color: DayweaveColors.marigold),
+            const SizedBox(width: DayweaveSpacing.sm),
+            const _SectionLabel(text: 'UP NEXT'),
+            const Spacer(),
+            if (activeTask != null)
+              Text(activeTask.time,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontFamily: 'Fraunces', color: DayweaveColors.inkSoft)),
+          ]),
+        ),
+        if (activeTask != null && !completed) ...[
+          SizedBox(
+            height: 140,
+            width: double.infinity,
+            child: Stack(fit: StackFit.expand, children: [
+              Image.asset('assets/images/dayweave-morning.webp', fit: BoxFit.cover),
+              Positioned(
+                right: 11,
+                bottom: 9,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  color: const Color(0xAA1D2D35),
+                  child: const Text('PLATE 01 / MORNING LIGHT',
+                      style: TextStyle(color: Colors.white, fontSize: 8, letterSpacing: 1.0)),
+                ),
+              ),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${activeTask.energy.name.toUpperCase()} ENERGY · ${activeTask.minutes}m',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: DayweaveColors.inkSoft,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.3)),
+              const SizedBox(height: 10),
+              Text(activeTask.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 30, height: 1.05)),
+              const SizedBox(height: 7),
+              Text(activeTask.note,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: DayweaveColors.inkSoft)),
+              const SizedBox(height: 18),
+              Wrap(spacing: DayweaveSpacing.sm, runSpacing: DayweaveSpacing.sm, children: [
+                OutlinedButton.icon(
+                  onPressed: onFocus,
+                  icon: const Icon(Icons.play_arrow, size: 17),
+                  label: const Text('Start focus'),
+                ),
+                const TextButton(onPressed: null, child: Text('Later')),
+              ]),
+            ]),
+          ),
+        ] else
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 22),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(completed ? 'The route is complete.' : 'Nothing pressing.',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 23)),
+              const SizedBox(height: DayweaveSpacing.sm),
+              Text(completed ? 'You gave today some shape.' : 'You made it to the other side of the list.',
+                  style: Theme.of(context).textTheme.bodyLarge),
+            ]),
+          ),
+      ]),
+    );
+  }
 }
 
 class _LoadingState extends StatelessWidget {
