@@ -4,6 +4,7 @@ import '../../../core/theme/dayweave_theme.dart';
 import '../../../widgets/feature_placeholder.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../today/presentation/today_screen.dart';
+import '../../notes/presentation/loose_notes_screen.dart';
 import '../../week/presentation/this_week_screen.dart';
 
 class MobileShell extends ConsumerStatefulWidget {
@@ -54,8 +55,10 @@ class _MobileShellState extends ConsumerState<MobileShell> {
           ? const TodayScreen()
           : index == 1
               ? const ThisWeekScreen()
-              : FeaturePlaceholder(
-                  title: destination.$1, description: destination.$2),
+              : index == 2
+                  ? const LooseNotesScreen()
+                  : FeaturePlaceholder(
+                      title: destination.$1, description: destination.$2),
       bottomNavigationBar: NavigationBarTheme(
         data: Theme.of(context).navigationBarTheme.copyWith(
               backgroundColor: DayweaveColors.paper,
