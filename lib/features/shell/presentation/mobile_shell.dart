@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/theme/dayweave_theme.dart';
 import '../../../widgets/feature_placeholder.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../today/presentation/today_screen.dart';
 import '../../notes/presentation/loose_notes_screen.dart';
+import '../../focus_history/presentation/focus_history_screen.dart';
 import '../../week/presentation/this_week_screen.dart';
 
 class MobileShell extends ConsumerStatefulWidget {
@@ -33,14 +35,17 @@ class _MobileShellState extends ConsumerState<MobileShell> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset('assets/images/dayweave-mark.webp',
-                width: 30, height: 30),
+            Image.asset(
+              'assets/images/dayweave-mark.webp',
+              width: 30,
+              height: 30,
+            ),
             const SizedBox(width: DayweaveSpacing.sm),
-            Text('dayweave',
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineSmall
-                    ?.copyWith(fontSize: 24)),
+            Text(
+              'dayweave',
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontSize: 24),
+            ),
           ],
         ),
         actions: [
@@ -54,40 +59,48 @@ class _MobileShellState extends ConsumerState<MobileShell> {
       body: index == 0
           ? const TodayScreen()
           : index == 1
-              ? const ThisWeekScreen()
-              : index == 2
-                  ? const LooseNotesScreen()
-                  : FeaturePlaceholder(
-                      title: destination.$1, description: destination.$2),
+          ? const ThisWeekScreen()
+          : index == 2
+          ? const LooseNotesScreen()
+          : index == 3
+          ? const FocusHistoryScreen()
+          : FeaturePlaceholder(
+              title: destination.$1,
+              description: destination.$2,
+            ),
       bottomNavigationBar: NavigationBarTheme(
         data: Theme.of(context).navigationBarTheme.copyWith(
-              backgroundColor: DayweaveColors.paper,
-              surfaceTintColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              indicatorColor: DayweaveColors.sage.withValues(alpha: .7),
-              elevation: 0,
-            ),
+          backgroundColor: DayweaveColors.paper,
+          surfaceTintColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          indicatorColor: DayweaveColors.sage.withValues(alpha: .7),
+          elevation: 0,
+        ),
         child: NavigationBar(
           height: 80,
           selectedIndex: index,
           onDestinationSelected: (value) => setState(() => index = value),
           destinations: const [
             NavigationDestination(
-                icon: Icon(Icons.today_outlined),
-                selectedIcon: Icon(Icons.today),
-                label: 'Today'),
+              icon: Icon(Icons.today_outlined),
+              selectedIcon: Icon(Icons.today),
+              label: 'Today',
+            ),
             NavigationDestination(
-                icon: Icon(Icons.calendar_view_week_outlined),
-                selectedIcon: Icon(Icons.calendar_view_week),
-                label: 'Week'),
+              icon: Icon(Icons.calendar_view_week_outlined),
+              selectedIcon: Icon(Icons.calendar_view_week),
+              label: 'Week',
+            ),
             NavigationDestination(
-                icon: Icon(Icons.inbox_outlined),
-                selectedIcon: Icon(Icons.inbox),
-                label: 'Notes'),
+              icon: Icon(Icons.inbox_outlined),
+              selectedIcon: Icon(Icons.inbox),
+              label: 'Notes',
+            ),
             NavigationDestination(
-                icon: Icon(Icons.timer_outlined),
-                selectedIcon: Icon(Icons.timer),
-                label: 'History'),
+              icon: Icon(Icons.timer_outlined),
+              selectedIcon: Icon(Icons.timer),
+              label: 'History',
+            ),
           ],
         ),
       ),
@@ -102,11 +115,13 @@ class _MobileShellState extends ConsumerState<MobileShell> {
         content: const Text('You can sign back in whenever you are ready.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Sign out')),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sign out'),
+          ),
         ],
       ),
     );
