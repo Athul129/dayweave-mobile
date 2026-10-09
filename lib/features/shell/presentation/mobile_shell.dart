@@ -8,6 +8,7 @@ import '../../today/presentation/today_screen.dart';
 import '../../notes/presentation/loose_notes_screen.dart';
 import '../../focus_history/presentation/focus_history_screen.dart';
 import '../../week/presentation/this_week_screen.dart';
+import '../../account/presentation/account_avatar_action.dart';
 
 class MobileShell extends ConsumerStatefulWidget {
   const MobileShell({super.key});
@@ -43,12 +44,15 @@ class _MobileShellState extends ConsumerState<MobileShell> {
             const SizedBox(width: DayweaveSpacing.sm),
             Text(
               'dayweave',
-              style: Theme.of(context).textTheme.headlineSmall
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineSmall
                   ?.copyWith(fontSize: 24),
             ),
           ],
         ),
         actions: [
+          AccountAvatarAction(onSignOut: _showSignOutConfirmation),
           IconButton(
             tooltip: 'Sign out',
             onPressed: () => _signOut(context),
@@ -59,23 +63,23 @@ class _MobileShellState extends ConsumerState<MobileShell> {
       body: index == 0
           ? const TodayScreen()
           : index == 1
-          ? const ThisWeekScreen()
-          : index == 2
-          ? const LooseNotesScreen()
-          : index == 3
-          ? const FocusHistoryScreen()
-          : FeaturePlaceholder(
-              title: destination.$1,
-              description: destination.$2,
-            ),
+              ? const ThisWeekScreen()
+              : index == 2
+                  ? const LooseNotesScreen()
+                  : index == 3
+                      ? const FocusHistoryScreen()
+                      : FeaturePlaceholder(
+                          title: destination.$1,
+                          description: destination.$2,
+                        ),
       bottomNavigationBar: NavigationBarTheme(
         data: Theme.of(context).navigationBarTheme.copyWith(
-          backgroundColor: DayweaveColors.paper,
-          surfaceTintColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          indicatorColor: DayweaveColors.sage.withValues(alpha: .7),
-          elevation: 0,
-        ),
+              backgroundColor: DayweaveColors.paper,
+              surfaceTintColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              indicatorColor: DayweaveColors.sage.withValues(alpha: .7),
+              elevation: 0,
+            ),
         child: NavigationBar(
           height: 80,
           selectedIndex: index,
@@ -129,4 +133,6 @@ class _MobileShellState extends ConsumerState<MobileShell> {
       await ref.read(authControllerProvider.notifier).signOut();
     }
   }
+
+  void _showSignOutConfirmation() => _signOut(context);
 }
