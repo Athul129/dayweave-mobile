@@ -9,6 +9,7 @@ import '../../notes/presentation/loose_notes_screen.dart';
 import '../../focus_history/presentation/focus_history_screen.dart';
 import '../../week/presentation/this_week_screen.dart';
 import '../../account/presentation/account_avatar_action.dart';
+import '../../preferences/presentation/preferences_sheet.dart';
 
 class MobileShell extends ConsumerStatefulWidget {
   const MobileShell({super.key});
@@ -52,6 +53,10 @@ class _MobileShellState extends ConsumerState<MobileShell> {
           ],
         ),
         actions: [
+          IconButton(
+              tooltip: 'Preferences',
+              onPressed: () => showPreferencesSheet(context),
+              icon: const Icon(Icons.tune_outlined)),
           AccountAvatarAction(onSignOut: _showSignOutConfirmation),
           IconButton(
             tooltip: 'Sign out',
