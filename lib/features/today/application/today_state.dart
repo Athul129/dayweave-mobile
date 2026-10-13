@@ -68,7 +68,7 @@ class TodayTaskDraft {
   Map<String, dynamic> toDatabase() => {
         'title': title.trim(),
         'note': note.trim().isEmpty ? 'A small, clear next step.' : note.trim(),
-        'time': time,
+        'time': normalizeTodayTaskTime(time),
         'minutes': minutes,
         'energy': energy.name[0].toUpperCase() + energy.name.substring(1),
         'section': section.name[0].toUpperCase() + section.name.substring(1),
@@ -76,10 +76,16 @@ class TodayTaskDraft {
       };
 }
 
+String normalizeTodayTaskTime(String value) {
+  final match = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(value);
+  if (match == null) return value;
+  return '${match.group(1)!.padLeft(2, '0')}:${match.group(2)}';
+}
+
 Map<String, String> validateTodayTaskDraft(TodayTaskDraft draft, LocalDate today) {
   final errors = <String, String>{};
   if (draft.title.trim().isEmpty) errors['title'] = 'Give this task a short title.';
-  final time = RegExp(r'^(\d{2}):(\d{2})$').firstMatch(draft.time);
+  final time = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(draft.time);
   if (time == null || int.parse(time.group(1)!) > 23 || int.parse(time.group(2)!) > 59) {
     errors['time'] = 'Use a time between 00:00 and 23:59.';
   }

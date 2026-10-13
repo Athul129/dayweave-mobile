@@ -85,11 +85,11 @@ class TodayController extends Notifier<TodayState> {
     if (errors.isNotEmpty) throw ArgumentError.value(errors, 'draft');
     final updated = await _mutations
         .add(() => _repository.update(_requireUser(), id, draft.toDatabase()));
-    state = state.copyWith(
-        tasks: state.tasks
-            .map((task) => task.id == id ? updated : task)
-            .toList(growable: false),
-        error: null);
+    final tasks = state.tasks
+        .map((task) => task.id == id ? updated : task)
+        .toList()
+      ..sort(_compareTasks);
+    state = state.copyWith(tasks: tasks, error: null);
     return updated;
   }
 

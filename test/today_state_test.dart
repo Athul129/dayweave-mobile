@@ -126,6 +126,39 @@ void main() {
         containsPair('time', '16:30'));
   });
 
+  test('accepts single-digit hours and normalizes task times', () {
+    final today = LocalDate.parse('2026-10-02');
+    final draft = TodayTaskDraft(
+      title: 'Task',
+      note: '',
+      time: '9:30',
+      minutes: 30,
+      energy: TaskEnergy.light,
+      section: TaskSection.afternoon,
+      date: today,
+    );
+
+    expect(validateTodayTaskDraft(draft, today), isEmpty);
+    expect(draft.toDatabase()['time'], '09:30');
+  });
+
+  test('rejects invalid task times', () {
+    final today = LocalDate.parse('2026-10-02');
+    TodayTaskDraft draft(String time) => TodayTaskDraft(
+          title: 'Task',
+          note: '',
+          time: time,
+          minutes: 30,
+          energy: TaskEnergy.light,
+          section: TaskSection.afternoon,
+          date: today,
+        );
+
+    for (final time in ['24:00', '12:60', '25:30', '9:75', '']) {
+      expect(validateTodayTaskDraft(draft(time), today), contains('time'));
+    }
+  });
+
   test('uses the Phase 4C create defaults', () {
     final draft = defaultTodayTaskDraft(LocalDate.parse('2026-10-02'),
         title: 'Capture this');

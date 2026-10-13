@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -56,7 +57,17 @@ class TodayIntentionController extends Notifier<TodayIntentionState> {
       if (userId == null) return;
       final date = LocalDate.today().iso;
       final request = _writeQueue.then((_) async {
-        await _repository.save(userId, date, value);
+        try {
+          await _repository.save(userId, date, value);
+        } catch (error, stackTrace) {
+          developer.log(
+            'Daily intention save failed.',
+            name: 'dayweave.today.intention',
+            error: error,
+            stackTrace: stackTrace,
+          );
+          rethrow;
+        }
         if (version == _version) state = state.copyWith(isSaving: false, error: null);
       });
       _writeQueue = request.then<void>((_) {}, onError: (_, __) {});

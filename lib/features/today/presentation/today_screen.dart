@@ -107,7 +107,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                             : selectors.upNext,
                         completed: selectors.todayTasks.isNotEmpty &&
                             selectors.completedCount == selectors.totalCount,
-                        onFocus: _openFocusPreview)),
+                        onFocus: _openFocusPreview,
+                        onLater: () => _laterTask(selectors.upNext))),
               SliverToBoxAdapter(
                   child: TodayReflectionCard(
                     onOpen: () => Navigator.of(context).push(MaterialPageRoute<void>(
@@ -185,13 +186,21 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
   Future<void> _toggleTask(Task task) async {
     final controller = ref.read(todayControllerProvider.notifier);
-    await (task.done
-        ? controller.uncompleteTask(task.id)
-        : controller.completeTask(task.id));
+    try {
+      await (task.done
+          ? controller.uncompleteTask(task.id)
+          : controller.completeTask(task.id));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Task could not be updated. Please try again.')),
+        );
+      }
+    }
   }
 
   Future<void> _openCreate([String title = '']) async {
-    if (title.trim().isEmpty) return;
     _brainDumpController.clear();
     await showTodayTaskFormSheet(
       context: context,
@@ -219,6 +228,20 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => const FocusScreen(),
     ));
+  }
+
+  Future<void> _laterTask(Task? task) async {
+    if (task == null) return;
+    try {
+      await ref.read(todayControllerProvider.notifier).later(task.id);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Task could not be updated. Please try again.')),
+        );
+      }
+    }
   }
 
   int _activeFilterCount(TodayState state) =>
@@ -839,10 +862,11 @@ class _UpNextCard extends StatelessWidget {
 }
 
 class _WebUpNextCard extends StatelessWidget {
-  const _WebUpNextCard({required this.task, required this.onFocus, this.completed = false});
+  const _WebUpNextCard({required this.task, required this.onFocus, required this.onLater, this.completed = false});
 
   final Task? task;
   final VoidCallback onFocus;
+  final Future<void> Function() onLater;
   final bool completed;
 
   @override
@@ -913,7 +937,7 @@ class _WebUpNextCard extends StatelessWidget {
                   icon: const Icon(Icons.play_arrow, size: 17),
                   label: const Text('Start focus'),
                 ),
-                const TextButton(onPressed: null, child: Text('Later')),
+                TextButton(onPressed: task == null ? null : onLater, child: const Text('Later')),
               ]),
             ]),
           ),

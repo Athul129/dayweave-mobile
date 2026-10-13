@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/date_time/dayweave_date_time.dart';
@@ -141,7 +143,13 @@ class _TodayTaskFormState extends State<TodayTaskForm> {
     try {
       final result = await widget.onSave(draft);
       if (mounted && result != null) Navigator.of(context).pop(result);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      developer.log(
+        'Task save failed.',
+        name: 'dayweave.today.task_form',
+        error: error,
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         setState(() {
           _saving = false;
@@ -338,4 +346,3 @@ class _TodayTaskFormState extends State<TodayTaskForm> {
     }
   }
 }
-
