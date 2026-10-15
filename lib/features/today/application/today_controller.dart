@@ -119,11 +119,11 @@ class TodayController extends Notifier<TodayState> {
   Future<Task> later(String id) async {
     final updated = await _mutations.add(() => _repository
         .update(_requireUser(), id, {'time': '16:30', 'section': 'Afternoon'}));
-    state = state.copyWith(
-        tasks: state.tasks
-            .map((task) => task.id == id ? updated : task)
-            .toList(growable: false),
-        error: null);
+    final tasks = state.tasks
+        .map((task) => task.id == id ? updated : task)
+        .toList()
+      ..sort(_compareTasks);
+    state = state.copyWith(tasks: tasks, error: null);
     return updated;
   }
 

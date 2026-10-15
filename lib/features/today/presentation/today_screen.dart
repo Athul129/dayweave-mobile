@@ -13,6 +13,11 @@ import 'widgets/today_task_form.dart';
 import 'widgets/today_reflection_card.dart';
 import 'widgets/today_reflection_screen.dart';
 
+Future<void> refreshTodayData({
+  required Future<void> Function() loadTasks,
+  required Future<void> Function() loadIntention,
+}) => Future.wait([loadTasks(), loadIntention()]);
+
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
   @override
@@ -57,7 +62,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       backgroundColor: DayweaveColors.paper,
       body: SafeArea(
           child: RefreshIndicator(
-        onRefresh: ref.read(todayControllerProvider.notifier).load,
+        onRefresh: () => refreshTodayData(
+            loadTasks: ref.read(todayControllerProvider.notifier).load,
+            loadIntention: ref.read(todayIntentionProvider.notifier).load),
         child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -375,7 +382,9 @@ class _MorningCheckIn extends StatelessWidget {
         ],
         if (state.error != null) ...[
           const SizedBox(height: DayweaveSpacing.sm),
-          Text('Your intention could not be saved. Please try again.',
+          Text(state.errorKind == TodayIntentionErrorKind.load
+                  ? 'Your intention could not be loaded. Please try again.'
+                  : 'Your intention could not be saved. Please try again.',
               style: text.bodyMedium?.copyWith(color: DayweaveColors.coral))
         ],
         const SizedBox(height: 14),
