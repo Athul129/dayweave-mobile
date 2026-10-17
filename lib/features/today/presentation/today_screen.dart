@@ -16,7 +16,8 @@ import 'widgets/today_reflection_screen.dart';
 Future<void> refreshTodayData({
   required Future<void> Function() loadTasks,
   required Future<void> Function() loadIntention,
-}) => Future.wait([loadTasks(), loadIntention()]);
+}) =>
+    Future.wait([loadTasks(), loadIntention()]);
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -93,9 +94,28 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   onSubmit: _openCreate,
                 )),
                 SliverToBoxAdapter(
-                    child: _SearchFilterEntry(
-                  activeCount: _activeFilterCount(state),
-                  onTap: () => _showSearchFilterSheet(context, state),
+                    child: _SearchFilterPanel(
+                  initialState: state,
+                  matchingCount: selectors.filteredTasks.length,
+                  onSearchChanged:
+                      ref.read(todayControllerProvider.notifier).setSearchQuery,
+                  onStatusChanged: ref
+                      .read(todayControllerProvider.notifier)
+                      .setStatusFilter,
+                  onEnergyChanged: ref
+                      .read(todayControllerProvider.notifier)
+                      .setEnergyFilter,
+                  onSectionChanged: ref
+                      .read(todayControllerProvider.notifier)
+                      .setSectionFilter,
+                  onClear: () {
+                    final controller =
+                        ref.read(todayControllerProvider.notifier);
+                    controller.setSearchQuery('');
+                    controller.setStatusFilter(TodayStatusFilter.all);
+                    controller.setEnergyFilter(TodayEnergyFilter.all);
+                    controller.setSectionFilter(TodaySectionFilter.all);
+                  },
                 )),
                 if (selectors.todayTasks.isEmpty)
                   const SliverToBoxAdapter(child: _EmptyRouteState())
@@ -116,12 +136,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                             selectors.completedCount == selectors.totalCount,
                         onFocus: _openFocusPreview,
                         onLater: () => _laterTask(selectors.upNext))),
-              SliverToBoxAdapter(
-                  child: TodayReflectionCard(
-                    onOpen: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => const TodayReflectionScreen(),
-                    )),
+                SliverToBoxAdapter(
+                    child: TodayReflectionCard(
+                  onOpen: () =>
+                      Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => const TodayReflectionScreen(),
                   )),
+                )),
               ],
               const SliverToBoxAdapter(
                   child: SizedBox(height: DayweaveSpacing.xl)),
@@ -250,28 +271,6 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       }
     }
   }
-
-  int _activeFilterCount(TodayState state) =>
-      (state.searchQuery.trim().isEmpty ? 0 : 1) +
-      (state.statusFilter == TodayStatusFilter.all ? 0 : 1) +
-      (state.energyFilter == TodayEnergyFilter.all ? 0 : 1) +
-      (state.sectionFilter == TodaySectionFilter.all ? 0 : 1);
-
-  Future<void> _showSearchFilterSheet(
-      BuildContext context, TodayState state) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: DayweaveColors.paper,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => _SearchFilterSheet(
-        activeCount: _activeFilterCount(state),
-      ),
-    );
-  }
 }
 
 class _TodayHeader extends StatelessWidget {
@@ -382,7 +381,8 @@ class _MorningCheckIn extends StatelessWidget {
         ],
         if (state.error != null) ...[
           const SizedBox(height: DayweaveSpacing.sm),
-          Text(state.errorKind == TodayIntentionErrorKind.load
+          Text(
+              state.errorKind == TodayIntentionErrorKind.load
                   ? 'Your intention could not be loaded. Please try again.'
                   : 'Your intention could not be saved. Please try again.',
               style: text.bodyMedium?.copyWith(color: DayweaveColors.coral))
@@ -598,8 +598,10 @@ class _SearchFilterEntry extends StatelessWidget {
               ),
               if (activeCount > 0)
                 Text('· $activeCount active',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: DayweaveColors.inkSoft)),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: DayweaveColors.inkSoft)),
               const SizedBox(width: DayweaveSpacing.sm),
               const Icon(Icons.arrow_forward,
                   size: 18, color: DayweaveColors.inkSoft),
@@ -609,102 +611,225 @@ class _SearchFilterEntry extends StatelessWidget {
       );
 }
 
-class _SearchFilterSheet extends StatelessWidget {
-  const _SearchFilterSheet({required this.activeCount});
-  final int activeCount;
+class _SearchFilterPanel extends StatefulWidget {
+  const _SearchFilterPanel({
+    required this.initialState,
+    required this.onSearchChanged,
+    required this.onStatusChanged,
+    required this.onEnergyChanged,
+    required this.onSectionChanged,
+    required this.onClear,
+    required this.matchingCount,
+  });
+
+  final TodayState initialState;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<TodayStatusFilter> onStatusChanged;
+  final ValueChanged<TodayEnergyFilter> onEnergyChanged;
+  final ValueChanged<TodaySectionFilter> onSectionChanged;
+  final VoidCallback onClear;
+  final int matchingCount;
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-            DayweaveSpacing.lg, DayweaveSpacing.md, DayweaveSpacing.lg,
-            DayweaveSpacing.xl),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: DayweaveColors.line,
-                  borderRadius: BorderRadius.circular(4)),
-            ),
-          ),
-          const SizedBox(height: DayweaveSpacing.lg),
-          Text('Search tasks',
-              style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: DayweaveSpacing.md),
-          const _DisabledSearchField(),
-          const SizedBox(height: DayweaveSpacing.lg),
-          const _FilterGroup(label: 'Status', options: ['All', 'Active', 'Completed']),
-          const _FilterGroup(label: 'Energy', options: ['All', 'Deep', 'Light', 'Social']),
-          const _FilterGroup(label: 'Section', options: ['All', 'Morning', 'Midday', 'Afternoon']),
-          const SizedBox(height: DayweaveSpacing.sm),
-          TextButton.icon(
-            onPressed: () {},
-            style: TextButton.styleFrom(
-              foregroundColor: DayweaveColors.marigold,
-              minimumSize: const Size(44, 44),
-              padding: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.sm),
-            ),
-            icon: const Icon(Icons.refresh, size: 17),
-            label: const Text('Clear filters'),
-          ),
-        ]),
-      );
+  State<_SearchFilterPanel> createState() => _SearchFilterPanelState();
 }
 
-class _DisabledSearchField extends StatelessWidget {
-  const _DisabledSearchField();
+class _SearchFilterPanelState extends State<_SearchFilterPanel> {
+  late final TextEditingController _searchController;
+  late String _searchQuery;
+  late TodayStatusFilter _status;
+  late TodayEnergyFilter _energy;
+  late TodaySectionFilter _section;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchQuery = widget.initialState.searchQuery;
+    _status = widget.initialState.statusFilter;
+    _energy = widget.initialState.energyFilter;
+    _section = widget.initialState.sectionFilter;
+    _searchController = TextEditingController(text: _searchQuery);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  int get _activeCount =>
+      (_searchQuery.trim().isEmpty ? 0 : 1) +
+      (_status == TodayStatusFilter.all ? 0 : 1) +
+      (_energy == TodayEnergyFilter.all ? 0 : 1) +
+      (_section == TodaySectionFilter.all ? 0 : 1);
 
   @override
   Widget build(BuildContext context) => Container(
-        height: 50,
-        padding: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.md),
+        margin: const EdgeInsets.fromLTRB(
+            DayweaveSpacing.lg, 0, DayweaveSpacing.lg, DayweaveSpacing.md),
+        padding: const EdgeInsets.all(DayweaveSpacing.md),
         decoration: BoxDecoration(
           color: DayweaveColors.card,
           border: Border.all(color: DayweaveColors.line),
           borderRadius: DayweaveRadii.md,
         ),
-        child: Row(children: [
-          const Icon(Icons.search, color: DayweaveColors.inkSoft),
-          const SizedBox(width: DayweaveSpacing.sm),
-          Text('Search tasks', style: Theme.of(context).textTheme.bodyLarge),
-          const Spacer(),
-          const Icon(Icons.close, size: 18, color: DayweaveColors.line),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          TextField(
+            controller: _searchController,
+            onChanged: (value) {
+              setState(() => _searchQuery = value);
+              widget.onSearchChanged(value);
+            },
+            decoration: InputDecoration(
+              hintText: 'Search tasks',
+              prefixIcon:
+                  const Icon(Icons.search, color: DayweaveColors.inkSoft),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                        widget.onSearchChanged('');
+                      },
+                      icon: const Icon(Icons.close, size: 18),
+                    ),
+              filled: true,
+              fillColor: DayweaveColors.card,
+              border: OutlineInputBorder(
+                  borderRadius: DayweaveRadii.md,
+                  borderSide: const BorderSide(color: DayweaveColors.line)),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: DayweaveRadii.md,
+                  borderSide: const BorderSide(color: DayweaveColors.line)),
+            ),
+          ),
+          const SizedBox(height: DayweaveSpacing.sm),
+          Row(children: [
+            Expanded(
+              child: _FilterDropdown<TodayStatusFilter>(
+                label: 'Status',
+                selected: _status,
+                options: const [
+                  ('All', TodayStatusFilter.all),
+                  ('Active', TodayStatusFilter.active),
+                  ('Completed', TodayStatusFilter.completed),
+                ],
+                onSelected: (value) {
+                  setState(() => _status = value);
+                  widget.onStatusChanged(value);
+                },
+              ),
+            ),
+            const SizedBox(width: DayweaveSpacing.sm),
+            Expanded(
+              child: _FilterDropdown<TodayEnergyFilter>(
+                label: 'Energy',
+                selected: _energy,
+                options: const [
+                  ('All', TodayEnergyFilter.all),
+                  ('Deep', TodayEnergyFilter.deep),
+                  ('Light', TodayEnergyFilter.light),
+                  ('Social', TodayEnergyFilter.social),
+                ],
+                onSelected: (value) {
+                  setState(() => _energy = value);
+                  widget.onEnergyChanged(value);
+                },
+              ),
+            ),
+          ]),
+          const SizedBox(height: DayweaveSpacing.sm),
+          _FilterDropdown<TodaySectionFilter>(
+            label: 'Section',
+            selected: _section,
+            options: const [
+              ('All', TodaySectionFilter.all),
+              ('Morning', TodaySectionFilter.morning),
+              ('Midday', TodaySectionFilter.midday),
+              ('Afternoon', TodaySectionFilter.afternoon),
+            ],
+            onSelected: (value) {
+              setState(() => _section = value);
+              widget.onSectionChanged(value);
+            },
+          ),
+          Row(children: [
+            Text(
+                '${widget.matchingCount} ${widget.matchingCount == 1 ? 'task' : 'tasks'}',
+                style: Theme.of(context).textTheme.bodyMedium),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _activeCount == 0
+                  ? null
+                  : () {
+                      _searchController.clear();
+                      setState(() {
+                        _searchQuery = '';
+                        _status = TodayStatusFilter.all;
+                        _energy = TodayEnergyFilter.all;
+                        _section = TodaySectionFilter.all;
+                      });
+                      widget.onClear();
+                    },
+              style: TextButton.styleFrom(
+                foregroundColor: DayweaveColors.marigold,
+                minimumSize: const Size(44, 44),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: DayweaveSpacing.sm),
+              ),
+              icon: const Icon(Icons.refresh, size: 17),
+              label: const Text('Clear filters'),
+            ),
+          ]),
         ]),
       );
 }
 
-class _FilterGroup extends StatelessWidget {
-  const _FilterGroup({required this.label, required this.options});
+class _FilterDropdown<T> extends StatelessWidget {
+  const _FilterDropdown({
+    required this.label,
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+  });
   final String label;
-  final List<String> options;
+  final List<(String, T)> options;
+  final T selected;
+  final ValueChanged<T> onSelected;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: DayweaveSpacing.md),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: DayweaveColors.inkSoft, letterSpacing: 1.1)),
-          const SizedBox(height: DayweaveSpacing.sm),
-          Wrap(
-            spacing: DayweaveSpacing.sm,
-            runSpacing: DayweaveSpacing.sm,
-            children: options
-                .map((option) => Container(
-                      constraints: const BoxConstraints(minHeight: 44),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: DayweaveSpacing.md, vertical: 10),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: DayweaveColors.line),
-                        borderRadius: DayweaveRadii.sm,
-                      ),
-                      child: Text(option,
-                          style: Theme.of(context).textTheme.bodyMedium),
-                    ))
-                .toList(),
+  Widget build(BuildContext context) => PopupMenuButton<T>(
+        onSelected: onSelected,
+        initialValue: selected,
+        itemBuilder: (context) => options
+            .map((option) => PopupMenuItem<T>(
+                  value: option.$2,
+                  child: Text(option.$1),
+                ))
+            .toList(),
+        offset: const Offset(0, 48),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.sm),
+          decoration: BoxDecoration(
+            color: DayweaveColors.card,
+            border: Border.all(color: DayweaveColors.line),
+            borderRadius: DayweaveRadii.sm,
           ),
-        ]),
+          child: Row(children: [
+            Expanded(
+              child: Text(
+                  '$label: ${options.firstWhere((option) => option.$2 == selected).$1}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium),
+            ),
+            const Icon(Icons.keyboard_arrow_down,
+                size: 20, color: DayweaveColors.inkSoft),
+          ]),
+        ),
       );
 }
 
@@ -763,7 +888,8 @@ class _FilteredEmptyState extends StatelessWidget {
             style: TextButton.styleFrom(
               foregroundColor: DayweaveColors.marigold,
               minimumSize: const Size(44, 44),
-              padding: const EdgeInsets.symmetric(horizontal: DayweaveSpacing.sm),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: DayweaveSpacing.sm),
             ),
             child: const Text('Clear filters'),
           ),
@@ -871,7 +997,11 @@ class _UpNextCard extends StatelessWidget {
 }
 
 class _WebUpNextCard extends StatelessWidget {
-  const _WebUpNextCard({required this.task, required this.onFocus, required this.onLater, this.completed = false});
+  const _WebUpNextCard(
+      {required this.task,
+      required this.onFocus,
+      required this.onLater,
+      this.completed = false});
 
   final Task? task;
   final VoidCallback onFocus;
@@ -887,7 +1017,10 @@ class _WebUpNextCard extends StatelessWidget {
       decoration: const BoxDecoration(
         color: DayweaveColors.sage,
         borderRadius: DayweaveRadii.lg,
-        boxShadow: [BoxShadow(color: Color(0x1A243B32), offset: Offset(0, 5), blurRadius: 14)],
+        boxShadow: [
+          BoxShadow(
+              color: Color(0x1A243B32), offset: Offset(0, 5), blurRadius: 14)
+        ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
@@ -908,23 +1041,30 @@ class _WebUpNextCard extends StatelessWidget {
             height: 140,
             width: double.infinity,
             child: Stack(fit: StackFit.expand, children: [
-              Image.asset('assets/images/dayweave-morning.webp', fit: BoxFit.cover),
+              Image.asset('assets/images/dayweave-morning.webp',
+                  fit: BoxFit.cover),
               Positioned(
                 right: 11,
                 bottom: 9,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                   color: const Color(0xAA1D2D35),
                   child: const Text('PLATE 01 / MORNING LIGHT',
-                      style: TextStyle(color: Colors.white, fontSize: 8, letterSpacing: 1.0)),
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          letterSpacing: 1.0)),
                 ),
               ),
             ]),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${activeTask.energy.name.toUpperCase()} ENERGY · ${activeTask.minutes}m',
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                  '${activeTask.energy.name.toUpperCase()} ENERGY · ${activeTask.minutes}m',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: DayweaveColors.inkSoft,
                       fontWeight: FontWeight.w700,
@@ -933,31 +1073,49 @@ class _WebUpNextCard extends StatelessWidget {
               Text(activeTask.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 30, height: 1.05)),
+                  style: Theme.of(context)
+                      .textTheme
+                      .displaySmall
+                      ?.copyWith(fontSize: 30, height: 1.05)),
               const SizedBox(height: 7),
               Text(activeTask.note,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: DayweaveColors.inkSoft)),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: DayweaveColors.inkSoft)),
               const SizedBox(height: 18),
-              Wrap(spacing: DayweaveSpacing.sm, runSpacing: DayweaveSpacing.sm, children: [
-                OutlinedButton.icon(
-                  onPressed: onFocus,
-                  icon: const Icon(Icons.play_arrow, size: 17),
-                  label: const Text('Start focus'),
-                ),
-                TextButton(onPressed: task == null ? null : onLater, child: const Text('Later')),
-              ]),
+              Wrap(
+                  spacing: DayweaveSpacing.sm,
+                  runSpacing: DayweaveSpacing.sm,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: onFocus,
+                      icon: const Icon(Icons.play_arrow, size: 17),
+                      label: const Text('Start focus'),
+                    ),
+                    TextButton(
+                        onPressed: task == null ? null : onLater,
+                        child: const Text('Later')),
+                  ]),
             ]),
           ),
         ] else
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 22),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(completed ? 'The route is complete.' : 'Nothing pressing.',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 23)),
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.copyWith(fontSize: 23)),
               const SizedBox(height: DayweaveSpacing.sm),
-              Text(completed ? 'You gave today some shape.' : 'You made it to the other side of the list.',
+              Text(
+                  completed
+                      ? 'You gave today some shape.'
+                      : 'You made it to the other side of the list.',
                   style: Theme.of(context).textTheme.bodyLarge),
             ]),
           ),

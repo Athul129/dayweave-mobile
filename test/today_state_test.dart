@@ -86,6 +86,29 @@ void main() {
     expect(value.filteredTasks.map((item) => item.id), ['1']);
   });
 
+  test('search and filters can be reset to show all Today tasks', () {
+    final tasks = [
+      task('active-deep',
+          title: 'Write report',
+          energy: TaskEnergy.deep,
+          section: TaskSection.morning),
+      task('completed-light',
+          title: 'Review report',
+          done: true,
+          energy: TaskEnergy.light,
+          section: TaskSection.afternoon),
+    ];
+    final filtered = selectors(tasks,
+        searchQuery: 'write',
+        status: TodayStatusFilter.active,
+        energy: TodayEnergyFilter.deep,
+        section: TodaySectionFilter.morning);
+
+    expect(filtered.filteredTasks.map((item) => item.id), ['active-deep']);
+    expect(selectors(tasks).filteredTasks.map((item) => item.id),
+        ['active-deep', 'completed-light']);
+  });
+
   test('up next prefers active, then unfinished, then first task', () {
     expect(
         selectors([task('1', done: false), task('2', done: false)],

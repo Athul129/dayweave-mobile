@@ -82,7 +82,7 @@ class TodayReflectionScreen extends StatelessWidget {
       );
 }
 
-class _ReflectionHeader extends StatelessWidget {
+class _ReflectionHeader extends StatelessWidget {   
   const _ReflectionHeader({required this.onBack});
   final VoidCallback onBack;
 
