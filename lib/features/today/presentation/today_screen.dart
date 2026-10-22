@@ -7,6 +7,7 @@ import '../../../models/task.dart';
 import '../../focus/presentation/focus_screen.dart';
 import '../application/today_controller.dart';
 import '../application/today_intention_controller.dart';
+import '../application/today_reflection_controller.dart';
 import '../application/today_state.dart';
 import 'widgets/today_task_card.dart';
 import 'widgets/today_task_form.dart';
@@ -16,8 +17,9 @@ import 'widgets/today_reflection_screen.dart';
 Future<void> refreshTodayData({
   required Future<void> Function() loadTasks,
   required Future<void> Function() loadIntention,
+  required Future<void> Function() loadReflection,
 }) =>
-    Future.wait([loadTasks(), loadIntention()]);
+    Future.wait([loadTasks(), loadIntention(), loadReflection()]);
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -65,7 +67,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           child: RefreshIndicator(
         onRefresh: () => refreshTodayData(
             loadTasks: ref.read(todayControllerProvider.notifier).load,
-            loadIntention: ref.read(todayIntentionProvider.notifier).load),
+            loadIntention: ref.read(todayIntentionProvider.notifier).load,
+            loadReflection: ref.read(todayReflectionProvider.notifier).load),
         child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -124,7 +127,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 else ...[
                   ..._sectionSlivers(selectors),
                   if (selectors.completedCount == selectors.totalCount)
-                    const SliverToBoxAdapter(child: _CompletedDayState()),
+                    SliverToBoxAdapter(
+                        child: _CompletedDayState(
+                            onReflect: () =>
+                                _openReflection(selectors, intention.value))),
                 ],
                 const SliverToBoxAdapter(child: _BreathingRoomFooter()),
                 SliverToBoxAdapter(
@@ -138,10 +144,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         onLater: () => _laterTask(selectors.upNext))),
                 SliverToBoxAdapter(
                     child: TodayReflectionCard(
-                  onOpen: () =>
-                      Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => const TodayReflectionScreen(),
-                  )),
+                  onOpen: () => _openReflection(selectors, intention.value),
                 )),
               ],
               const SliverToBoxAdapter(
@@ -250,6 +253,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       onDelete: () =>
           ref.read(todayControllerProvider.notifier).deleteTask(task.id),
     );
+  }
+
+  void _openReflection(TodaySelectors selectors, String intention) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => TodayReflectionScreen(
+        intention: intention,
+        completedCount: selectors.completedCount,
+        remainingCount: selectors.todayTasks.length - selectors.completedCount,
+        plannedMinutes: selectors.totalPlannedMinutes,
+      ),
+    ));
   }
 
   void _openFocusPreview() {
@@ -898,7 +912,8 @@ class _FilteredEmptyState extends StatelessWidget {
 }
 
 class _CompletedDayState extends StatelessWidget {
-  const _CompletedDayState();
+  const _CompletedDayState({required this.onReflect});
+  final VoidCallback onReflect;
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -908,8 +923,8 @@ class _CompletedDayState extends StatelessWidget {
             child: Text('The route is complete.\nYou gave today some shape.',
                 style: Theme.of(context).textTheme.bodyLarge),
           ),
-          const OutlinedButton(
-            onPressed: null,
+          OutlinedButton(
+            onPressed: onReflect,
             child: Text('Reflect'),
           ),
         ]),

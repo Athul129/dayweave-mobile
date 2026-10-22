@@ -3,10 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:dayweave_mobile/features/today/presentation/today_screen.dart';
 
 void main() {
-  test('Today refresh awaits task and intention reloads', () async {
+  test('Today refresh awaits task, intention, and reflection reloads',
+      () async {
     final calls = <String>[];
     var taskCompleted = false;
     var intentionCompleted = false;
+    var reflectionCompleted = false;
 
     final refresh = refreshTodayData(
       loadTasks: () async {
@@ -21,20 +23,30 @@ void main() {
         intentionCompleted = true;
         calls.add('intention-completed');
       },
+      loadReflection: () async {
+        calls.add('reflection-started');
+        await Future<void>.delayed(Duration.zero);
+        reflectionCompleted = true;
+        calls.add('reflection-completed');
+      },
     );
 
     expect(taskCompleted, isFalse);
     expect(intentionCompleted, isFalse);
+    expect(reflectionCompleted, isFalse);
     await refresh;
     expect(taskCompleted, isTrue);
     expect(intentionCompleted, isTrue);
+    expect(reflectionCompleted, isTrue);
     expect(
         calls,
         containsAllInOrder([
           'tasks-started',
           'intention-started',
+          'reflection-started',
           'tasks-completed',
           'intention-completed',
+          'reflection-completed',
         ]));
   });
 }
