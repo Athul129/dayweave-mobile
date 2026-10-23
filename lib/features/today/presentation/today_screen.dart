@@ -7,6 +7,7 @@ import '../../../models/task.dart';
 import '../../focus/presentation/focus_screen.dart';
 import '../application/today_controller.dart';
 import '../application/today_intention_controller.dart';
+import '../application/today_focus_summary_controller.dart';
 import '../application/today_reflection_controller.dart';
 import '../application/today_state.dart';
 import 'widgets/today_task_card.dart';
@@ -18,8 +19,14 @@ Future<void> refreshTodayData({
   required Future<void> Function() loadTasks,
   required Future<void> Function() loadIntention,
   required Future<void> Function() loadReflection,
+  required Future<void> Function() loadFocusSummary,
 }) =>
-    Future.wait([loadTasks(), loadIntention(), loadReflection()]);
+    Future.wait([
+      loadTasks(),
+      loadIntention(),
+      loadReflection(),
+      loadFocusSummary(),
+    ]);
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -68,7 +75,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         onRefresh: () => refreshTodayData(
             loadTasks: ref.read(todayControllerProvider.notifier).load,
             loadIntention: ref.read(todayIntentionProvider.notifier).load,
-            loadReflection: ref.read(todayReflectionProvider.notifier).load),
+            loadReflection: ref.read(todayReflectionProvider.notifier).load,
+            loadFocusSummary:
+                ref.read(todayFocusSummaryProvider.notifier).load),
         child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [

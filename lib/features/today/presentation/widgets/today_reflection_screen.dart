@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/dayweave_theme.dart';
+import '../../application/today_focus_summary_controller.dart';
 import '../../application/today_reflection_controller.dart';
 
 class TodayReflectionScreen extends ConsumerStatefulWidget {
@@ -39,6 +40,7 @@ class _TodayReflectionScreenState extends ConsumerState<TodayReflectionScreen> {
     Future<void>.microtask(() {
       if (mounted) {
         ref.read(todayReflectionProvider.notifier).load();
+        ref.read(todayFocusSummaryProvider.notifier).load();
       }
     });
   }
@@ -55,6 +57,7 @@ class _TodayReflectionScreenState extends ConsumerState<TodayReflectionScreen> {
   @override
   Widget build(BuildContext context) {
     final reflection = ref.watch(todayReflectionProvider);
+    final focusSummary = ref.watch(todayFocusSummaryProvider);
     return Scaffold(
       backgroundColor: DayweaveColors.paper,
       body: SafeArea(
@@ -119,7 +122,7 @@ class _TodayReflectionScreenState extends ConsumerState<TodayReflectionScreen> {
             const SizedBox(height: 36),
             const _ReflectionSectionLabel('FOCUS'),
             const SizedBox(height: DayweaveSpacing.md),
-            const _FocusEmptySurface(),
+            _FocusSummarySurface(state: focusSummary),
             const SizedBox(height: 36),
             const Divider(color: DayweaveColors.line, height: 1),
             const SizedBox(height: 32),
@@ -386,6 +389,38 @@ class _FocusEmptySurface extends StatelessWidget {
                   ?.copyWith(color: DayweaveColors.inkSoft)),
         ]),
       );
+}
+
+class _FocusSummarySurface extends StatelessWidget {
+  const _FocusSummarySurface({required this.state});
+
+  final TodayFocusSummaryState state;
+
+  @override
+  Widget build(BuildContext context) {
+    if (state.isLoading) {
+      return Text('Focus summary loading…',
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(color: DayweaveColors.inkSoft));
+    }
+    if (state.error != null) {
+      return Text('Focus summary unavailable right now.',
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(color: DayweaveColors.inkSoft));
+    }
+    if (state.sessionCount == 0) return const _FocusEmptySurface();
+    return Text(
+      '${state.sessionCount} ${state.sessionCount == 1 ? 'session' : 'sessions'} · ${state.plannedMinutes} min planned',
+      style: Theme.of(context)
+          .textTheme
+          .bodyLarge
+          ?.copyWith(color: DayweaveColors.inkSoft),
+    );
+  }
 }
 
 class _ReflectionField extends StatelessWidget {
