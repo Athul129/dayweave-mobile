@@ -43,6 +43,8 @@ class FakeTaskRepository implements TaskRepository {
   String? createdUserId;
   Map<String, dynamic>? createdDraft;
   Object? updateError;
+  Object? deleteError;
+  final deletedIds = <String>[];
 
   @override
   Future<List<Task>> fetchForUser(String userId) async => tasks;
@@ -93,7 +95,11 @@ class FakeTaskRepository implements TaskRepository {
   }
 
   @override
-  Future<void> delete(String userId, String id) => throw UnimplementedError();
+  Future<void> delete(String userId, String id) async {
+    if (deleteError != null) throw deleteError!;
+    deletedIds.add(id);
+    tasks = tasks.where((task) => task.id != id).toList();
+  }
 }
 
 ProviderContainer controllerContainer(FakeTaskRepository repository) {
@@ -109,6 +115,71 @@ void main() {
   final first = controllerTask('first', '09:00');
   final second = controllerTask('second', '12:00');
   final third = controllerTask('third', '18:00');
+
+  test('clearToday deletes only unfinished tasks scheduled for today',
+      () async {
+    final today = LocalDate.today().iso;
+    final repository = FakeTaskRepository([
+      controllerTask('active-today', '09:00'),
+      Task(
+          id: 'done-today',
+          userId: 'user-1',
+          title: 'done',
+          note: 'Note',
+          time: '10:00',
+          minutes: 30,
+          energy: TaskEnergy.light,
+          done: true,
+          section: TaskSection.morning,
+          date: today),
+      controllerTask('future', '11:00', date: LocalDate.today().addDays(1).iso),
+    ]);
+    final container = controllerContainer(repository);
+    addTearDown(container.dispose);
+    final controller = container.read(todayControllerProvider.notifier);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(await controller.clearToday(), 1);
+    expect(repository.deletedIds, ['active-today']);
+    expect(controller.state.tasks.map((task) => task.id),
+        containsAll(['done-today', 'future']));
+  });
+
+  test('clearToday does nothing when no unfinished task is eligible', () async {
+    final repository = FakeTaskRepository([
+      Task(
+          id: 'done',
+          userId: 'user-1',
+          title: 'done',
+          note: 'Note',
+          time: '10:00',
+          minutes: 30,
+          energy: TaskEnergy.light,
+          done: true,
+          section: TaskSection.morning,
+          date: LocalDate.today().iso),
+    ]);
+    final container = controllerContainer(repository);
+    addTearDown(container.dispose);
+    final controller = container.read(todayControllerProvider.notifier);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(await controller.clearToday(), 0);
+    expect(repository.deletedIds, isEmpty);
+  });
+
+  test('clearToday preserves local state when deletion fails', () async {
+    final task = controllerTask('active', '09:00');
+    final repository = FakeTaskRepository([task])
+      ..deleteError = StateError('delete failed');
+    final container = controllerContainer(repository);
+    addTearDown(container.dispose);
+    final controller = container.read(todayControllerProvider.notifier);
+    await Future<void>.delayed(Duration.zero);
+
+    await expectLater(controller.clearToday(), throwsStateError);
+    expect(controller.state.tasks.single.id, task.id);
+  });
 
   test('Later sends the task ID and sorts the updated task', () async {
     final repository = FakeTaskRepository([first, second, third]);

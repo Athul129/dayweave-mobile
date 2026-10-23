@@ -81,7 +81,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              SliverToBoxAdapter(child: _TodayHeader(date: state.date)),
+              SliverToBoxAdapter(
+                  child: _TodayHeader(
+                      date: state.date, onClearDay: _requestClearDay)),
               SliverToBoxAdapter(
                   child: _MorningCheckIn(
                       controller: _intentionController,
@@ -252,6 +254,38 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     );
   }
 
+  Future<void> _requestClearDay() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear the day?'),
+        content: const Text('This will remove unfinished tasks from today.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Keep it')),
+          FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Clear the day')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      final count =
+          await ref.read(todayControllerProvider.notifier).clearToday();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(count == 0
+              ? 'There are no unfinished tasks to clear.'
+              : '$count unfinished ${count == 1 ? 'task' : 'tasks'} cleared.')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Your day could not be cleared. Please try again.')));
+    }
+  }
+
   Future<void> _openEdit(Task task) async {
     await showTodayTaskFormSheet(
       context: context,
@@ -297,8 +331,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 }
 
 class _TodayHeader extends StatelessWidget {
-  const _TodayHeader({required this.date});
+  const _TodayHeader({required this.date, required this.onClearDay});
   final LocalDate date;
+  final VoidCallback onClearDay;
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(DayweaveSpacing.lg,
@@ -313,9 +348,12 @@ class _TodayHeader extends StatelessWidget {
           PopupMenuButton<String>(
             tooltip: 'Today options',
             icon: const Icon(Icons.more_horiz),
+            onSelected: (value) {
+              if (value == 'clear') onClearDay();
+            },
             itemBuilder: (context) => const [
               PopupMenuItem<String>(
-                  enabled: false, value: 'clear', child: Text('Clear View')),
+                  value: 'clear', child: Text('Clear the day')),
               PopupMenuItem<String>(
                   enabled: false, value: 'share', child: Text('Share View')),
             ],

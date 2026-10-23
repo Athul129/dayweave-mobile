@@ -116,6 +116,27 @@ class TodayController extends Notifier<TodayState> {
         error: null);
   }
 
+  Future<int> clearToday() async {
+    final targets = state.tasks
+        .where((task) => task.date == state.date.iso && !task.done)
+        .toList(growable: false);
+    if (targets.isEmpty) return 0;
+    final userId = _requireUser();
+    for (final task in targets) {
+      await _mutations.add(() => _repository.delete(userId, task.id));
+    }
+    final targetIds = targets.map((task) => task.id).toSet();
+    state = state.copyWith(
+      tasks: state.tasks
+          .where((task) => !targetIds.contains(task.id))
+          .toList(growable: false),
+      activeTaskId:
+          targetIds.contains(state.activeTaskId) ? null : state.activeTaskId,
+      error: null,
+    );
+    return targets.length;
+  }
+
   Future<Task> later(String id) async {
     final updated = await _mutations.add(() => _repository
         .update(_requireUser(), id, {'time': '16:30', 'section': 'Afternoon'}));
