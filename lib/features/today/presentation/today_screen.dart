@@ -309,9 +309,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     ));
   }
 
-  void _openFocusPreview() {
+  void _openFocusPreview(Task? task) {
     Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => const FocusScreen(),
+      builder: (_) => FocusScreen(task: task),
     ));
   }
 
@@ -1066,7 +1066,7 @@ class _WebUpNextCard extends StatelessWidget {
       this.completed = false});
 
   final Task? task;
-  final VoidCallback onFocus;
+  final ValueChanged<Task> onFocus;
   final Future<void> Function() onLater;
   final bool completed;
 
@@ -1153,13 +1153,11 @@ class _WebUpNextCard extends StatelessWidget {
                   runSpacing: DayweaveSpacing.sm,
                   children: [
                     OutlinedButton.icon(
-                      onPressed: onFocus,
+                      onPressed: () => onFocus(activeTask),
                       icon: const Icon(Icons.play_arrow, size: 17),
                       label: const Text('Start focus'),
                     ),
-                    TextButton(
-                        onPressed: task == null ? null : onLater,
-                        child: const Text('Later')),
+                    TextButton(onPressed: onLater, child: const Text('Later')),
                   ]),
             ]),
           ),

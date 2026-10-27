@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:dayweave_mobile/features/today/presentation/today_screen.dart';
@@ -5,57 +7,56 @@ import 'package:dayweave_mobile/features/today/presentation/today_screen.dart';
 void main() {
   test('Today refresh awaits all Today data reloads', () async {
     final calls = <String>[];
-    var taskCompleted = false;
-    var intentionCompleted = false;
-    var reflectionCompleted = false;
-    var focusSummaryCompleted = false;
+    final taskGate = Completer<void>();
+    final intentionGate = Completer<void>();
+    final reflectionGate = Completer<void>();
+    final focusGate = Completer<void>();
 
     final refresh = refreshTodayData(
       loadTasks: () async {
         calls.add('tasks-started');
-        await Future<void>.delayed(Duration.zero);
-        taskCompleted = true;
+        await taskGate.future;
         calls.add('tasks-completed');
       },
       loadIntention: () async {
         calls.add('intention-started');
-        await Future<void>.delayed(Duration.zero);
-        intentionCompleted = true;
+        await intentionGate.future;
         calls.add('intention-completed');
       },
       loadReflection: () async {
         calls.add('reflection-started');
-        await Future<void>.delayed(Duration.zero);
-        reflectionCompleted = true;
+        await reflectionGate.future;
         calls.add('reflection-completed');
       },
       loadFocusSummary: () async {
         calls.add('focus-started');
-        await Future<void>.delayed(Duration.zero);
-        focusSummaryCompleted = true;
+        await focusGate.future;
         calls.add('focus-completed');
       },
     );
 
-    expect(taskCompleted, isFalse);
-    expect(intentionCompleted, isFalse);
-    expect(reflectionCompleted, isFalse);
-    expect(focusSummaryCompleted, isFalse);
+    await Future<void>.delayed(Duration.zero);
+    expect(calls, [
+      'tasks-started',
+      'intention-started',
+      'reflection-started',
+      'focus-started',
+    ]);
+    taskGate.complete();
+    intentionGate.complete();
+    reflectionGate.complete();
+    focusGate.complete();
     await refresh;
-    expect(taskCompleted, isTrue);
-    expect(intentionCompleted, isTrue);
-    expect(reflectionCompleted, isTrue);
-    expect(focusSummaryCompleted, isTrue);
     expect(
         calls,
         containsAllInOrder([
           'tasks-started',
           'intention-started',
           'reflection-started',
+          'focus-started',
           'tasks-completed',
           'intention-completed',
           'reflection-completed',
-          'focus-started',
           'focus-completed',
         ]));
   });

@@ -7,6 +7,7 @@ import 'package:dayweave_mobile/features/auth/application/current_user_provider.
 import 'package:dayweave_mobile/features/today/application/today_reflection_controller.dart';
 import 'package:dayweave_mobile/features/today/presentation/widgets/today_reflection_screen.dart';
 import 'package:dayweave_mobile/models/domain_models.dart';
+import 'package:dayweave_mobile/repositories/focus_repository.dart';
 import 'package:dayweave_mobile/repositories/reflection_repository.dart';
 import 'package:dayweave_mobile/services/providers.dart';
 
@@ -54,10 +55,27 @@ class FakeReflectionRepository implements ReflectionRepository {
   }
 }
 
+class FakeFocusRepository implements FocusRepository {
+  int fetchCalls = 0;
+
+  @override
+  Future<List<FocusSession>> fetchForUser(String userId) async {
+    fetchCalls++;
+    return const [];
+  }
+
+  @override
+  Future<FocusSession> saveCompleted(
+          String userId, Map<String, dynamic> draft) async =>
+      throw UnimplementedError();
+}
+
 ProviderContainer reflectionContainer(FakeReflectionRepository repository,
-        {String? userId = 'user-1'}) =>
+        {String? userId = 'user-1', FocusRepository? focusRepository}) =>
     ProviderContainer(overrides: [
       reflectionRepositoryProvider.overrideWithValue(repository),
+      focusRepositoryProvider
+          .overrideWithValue(focusRepository ?? FakeFocusRepository()),
       currentUserIdProvider.overrideWithValue(userId),
     ]);
 
@@ -74,7 +92,10 @@ void main() {
         createdAt: DayweaveTimestamp.now(),
         updatedAt: DayweaveTimestamp.now(),
       );
-    final container = reflectionContainer(repository);
+    final container = reflectionContainer(
+      repository,
+      focusRepository: FakeFocusRepository(),
+    );
     addTearDown(container.dispose);
     final controller = container.read(todayReflectionProvider.notifier);
     await Future<void>.delayed(Duration.zero);
@@ -89,7 +110,8 @@ void main() {
   test('saves both fields with the authenticated user and local date',
       () async {
     final repository = FakeReflectionRepository();
-    final container = reflectionContainer(repository);
+    final container =
+        reflectionContainer(repository, focusRepository: FakeFocusRepository());
     addTearDown(container.dispose);
     final controller = container.read(todayReflectionProvider.notifier);
     await Future<void>.delayed(Duration.zero);
@@ -143,7 +165,10 @@ void main() {
   testWidgets('reopening Reflection reloads the cached provider',
       (tester) async {
     final repository = FakeReflectionRepository();
-    final container = reflectionContainer(repository);
+    final container = reflectionContainer(
+      repository,
+      focusRepository: FakeFocusRepository(),
+    );
     addTearDown(container.dispose);
 
     await tester.pumpWidget(UncontrolledProviderScope(

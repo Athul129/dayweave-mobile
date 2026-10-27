@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/date_time/dayweave_date_time.dart';
 import '../../../features/auth/application/current_user_provider.dart';
-import '../../../models/domain_models.dart';
 import '../../../repositories/focus_repository.dart';
 import '../../../services/providers.dart';
 
