@@ -1,38 +1,66 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../features/auth/application/current_user_provider.dart';
+import '../../../models/domain_models.dart';
 import '../../../core/theme/dayweave_theme.dart';
+import '../application/focus_history_controller.dart';
 
-class FocusHistoryScreen extends StatelessWidget {
+class FocusHistoryScreen extends ConsumerStatefulWidget {
   const FocusHistoryScreen({super.key});
 
-  // Static presentation state until history data is connected.
-  static const previewState = _HistoryPreviewState.populated;
+  @override
+  ConsumerState<FocusHistoryScreen> createState() => _FocusHistoryScreenState();
+}
+
+class _FocusHistoryScreenState extends ConsumerState<FocusHistoryScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(() {
+      if (mounted) ref.read(focusHistoryProvider.notifier).load();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final content = switch (previewState) {
-      _HistoryPreviewState.populated => _populated(context),
-      _HistoryPreviewState.empty => _empty(context),
-      _HistoryPreviewState.loading => _loading(context),
-      _HistoryPreviewState.error => _error(context),
-    };
+    ref.listen<String?>(currentUserIdProvider, (previous, next) {
+      if (previous != next) {
+        unawaited(ref.read(focusHistoryProvider.notifier).load());
+      }
+    });
+    final history = ref.watch(focusHistoryProvider);
+    final content = history.isLoading
+        ? _loading(context)
+        : history.error != null
+            ? _error(
+                context, () => ref.read(focusHistoryProvider.notifier).load())
+            : history.filteredSessions.isEmpty
+                ? _empty(context)
+                : _populated(context, history);
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-          DayweaveSpacing.lg,
-          8,
-          DayweaveSpacing.lg,
-          28,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _hero(context),
-            const SizedBox(height: 16),
-            _rangeSelector(context),
-            const SizedBox(height: 14),
-            content,
-          ],
+      child: RefreshIndicator(
+        onRefresh: () => ref.read(focusHistoryProvider.notifier).load(),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            DayweaveSpacing.lg,
+            8,
+            DayweaveSpacing.lg,
+            28,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _hero(context),
+              const SizedBox(height: 16),
+              _rangeSelector(context, history),
+              const SizedBox(height: 14),
+              content,
+            ],
+          ),
         ),
       ),
     );
@@ -71,7 +99,7 @@ class FocusHistoryScreen extends StatelessWidget {
         ),
       );
 
-  Widget _rangeSelector(BuildContext context) => Row(
+  Widget _rangeSelector(BuildContext context, FocusHistoryState history) => Row(
         children: [
           Text(
             'Show',
@@ -81,52 +109,68 @@ class FocusHistoryScreen extends StatelessWidget {
                 ?.copyWith(color: DayweaveColors.ink),
           ),
           const Spacer(),
-          OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.expand_more, size: 18),
-            label: const Text('All time'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(124, 46),
-              foregroundColor: DayweaveColors.ink,
-              side: const BorderSide(color: DayweaveColors.line),
-              shape: const StadiumBorder(),
+          Container(
+            constraints: const BoxConstraints(minHeight: 46),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: DayweaveColors.card,
+              border: Border.all(color: DayweaveColors.line),
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<FocusHistoryPeriod>(
+                value: history.period,
+                icon: const Icon(Icons.expand_more, size: 18),
+                style: Theme.of(context)
+                    .textTheme
+                    .labelLarge
+                    ?.copyWith(color: DayweaveColors.ink),
+                onChanged: (period) {
+                  if (period != null) {
+                    ref
+                        .read(focusHistoryProvider.notifier)
+                        .selectPeriod(period);
+                  }
+                },
+                items: const [
+                  DropdownMenuItem(
+                    value: FocusHistoryPeriod.allTime,
+                    child: Text('All time'),
+                  ),
+                  DropdownMenuItem(
+                    value: FocusHistoryPeriod.thisWeek,
+                    child: Text('This week'),
+                  ),
+                  DropdownMenuItem(
+                    value: FocusHistoryPeriod.thisMonth,
+                    child: Text('This month'),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       );
 
-  Widget _populated(BuildContext context) => Column(
+  Widget _populated(BuildContext context, FocusHistoryState history) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _metrics(context),
+          _metrics(context, history),
           const SizedBox(height: 28),
-          _daySection(context, 'TODAY', [
-            const _Session(
-              'Finish API integration',
-              'Completed at 4:32 PM',
-              '30 min',
-              'Paused 5 min',
-            ),
-            const _Session(
-              'Review authentication',
-              'Completed at 2:15 PM',
-              '25 min',
-              null,
-            ),
-          ]),
-          const SizedBox(height: 24),
-          _daySection(context, 'YESTERDAY', [
-            const _Session(
-              'Plan database changes',
-              'Completed at 5:10 PM',
-              '45 min',
-              'Paused 3 min',
-            ),
-          ]),
+          ...history.dayGroups.indexed.expand(
+            (entry) => [
+              if (entry.$1 > 0) const SizedBox(height: 24),
+              _daySection(
+                context,
+                history.groupLabel(entry.$2.date),
+                entry.$2.sessions,
+              ),
+            ],
+          ),
         ],
       );
 
-  Widget _metrics(BuildContext context) => Container(
+  Widget _metrics(BuildContext context, FocusHistoryState history) => Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 6),
         decoration: BoxDecoration(
@@ -136,9 +180,24 @@ class FocusHistoryScreen extends StatelessWidget {
         ),
         child: Row(
           children: [
-            _metric(context, Icons.check_circle_outline, '8', 'COMPLETED'),
-            _metric(context, Icons.schedule_outlined, '3h 20m', 'FOCUSED'),
-            _metric(context, Icons.pause_circle_outline, '12m', 'PAUSED'),
+            _metric(
+              context,
+              Icons.check_circle_outline,
+              '${history.completedCount}',
+              'COMPLETED',
+            ),
+            _metric(
+              context,
+              Icons.schedule_outlined,
+              formatFocusDuration(history.plannedSeconds),
+              'FOCUSED',
+            ),
+            _metric(
+              context,
+              Icons.pause_circle_outline,
+              formatFocusDuration(history.pausedSeconds),
+              'PAUSED',
+            ),
           ],
         ),
       );
@@ -191,7 +250,7 @@ class FocusHistoryScreen extends StatelessWidget {
   Widget _daySection(
     BuildContext context,
     String label,
-    List<_Session> sessions,
+    List<FocusSession> sessions,
   ) =>
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -214,7 +273,7 @@ class FocusHistoryScreen extends StatelessWidget {
         ],
       );
 
-  Widget _sessionRow(BuildContext context, _Session session) => Container(
+  Widget _sessionRow(BuildContext context, FocusSession session) => Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(14, 13, 10, 13),
         decoration: BoxDecoration(
@@ -229,7 +288,7 @@ class FocusHistoryScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    session.title,
+                    session.taskTitle,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -240,7 +299,7 @@ class FocusHistoryScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    session.completedAt,
+                    'Completed at ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(session.completedAt.value.toLocal()))}',
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
@@ -254,14 +313,14 @@ class FocusHistoryScreen extends StatelessWidget {
                       _pill(
                         context,
                         Icons.schedule_outlined,
-                        session.duration,
+                        formatFocusDuration(session.plannedDurationSeconds),
                         DayweaveColors.sage.withValues(alpha: .55),
                       ),
-                      if (session.paused != null)
+                      if (session.pausedSeconds > 0)
                         _pill(
                           context,
                           Icons.pause_circle_outline,
-                          session.paused!,
+                          'Paused ${formatFocusDuration(session.pausedSeconds)}',
                           const Color(0xFFF5E7CB),
                         ),
                     ],
@@ -302,7 +361,7 @@ class FocusHistoryScreen extends StatelessWidget {
         Icons.timer_outlined,
         'No focus sessions yet',
         'Complete a focus session to see it here.',
-        'Go to Focus',
+        null,
       );
 
   Widget _loading(BuildContext context) => Container(
@@ -328,13 +387,14 @@ class FocusHistoryScreen extends StatelessWidget {
         ),
       );
 
-  Widget _error(BuildContext context) => _stateCard(
+  Widget _error(BuildContext context, VoidCallback onRetry) => _stateCard(
         context,
         Icons.error_outline,
         'Something went wrong',
         "We couldn't load your focus history.\nPlease try again.",
         'Try again',
         destructive: true,
+        onAction: onRetry,
       );
 
   Widget _stateCard(
@@ -342,8 +402,9 @@ class FocusHistoryScreen extends StatelessWidget {
     IconData icon,
     String title,
     String message,
-    String action, {
+    String? action, {
     bool destructive = false,
+    VoidCallback? onAction,
   }) =>
       Container(
         width: double.infinity,
@@ -376,26 +437,28 @@ class FocusHistoryScreen extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: 18),
-            OutlinedButton.icon(
-              onPressed: () {},
-              icon: Icon(
-                destructive ? Icons.refresh : Icons.play_arrow_outlined,
-                size: 17,
-              ),
-              label: Text(action),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: destructive
-                    ? DayweaveColors.coral
-                    : DayweaveColors.marigold,
-                side: BorderSide(
-                  color: destructive
+            if (action != null) ...[
+              const SizedBox(height: 18),
+              OutlinedButton.icon(
+                onPressed: onAction,
+                icon: Icon(
+                  destructive ? Icons.refresh : Icons.play_arrow_outlined,
+                  size: 17,
+                ),
+                label: Text(action),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: destructive
                       ? DayweaveColors.coral
                       : DayweaveColors.marigold,
+                  side: BorderSide(
+                    color: destructive
+                        ? DayweaveColors.coral
+                        : DayweaveColors.marigold,
+                  ),
+                  minimumSize: const Size(0, 44),
                 ),
-                minimumSize: const Size(0, 44),
               ),
-            ),
+            ],
           ],
         ),
       );
@@ -408,14 +471,4 @@ class FocusHistoryScreen extends StatelessWidget {
               letterSpacing: 1.7,
             ),
       );
-}
-
-enum _HistoryPreviewState { populated, empty, loading, error }
-
-class _Session {
-  const _Session(this.title, this.completedAt, this.duration, this.paused);
-  final String title;
-  final String completedAt;
-  final String duration;
-  final String? paused;
 }
