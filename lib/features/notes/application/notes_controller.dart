@@ -237,6 +237,7 @@ class NotesController extends Notifier<NotesState> {
         mediaType: media.mediaType,
         mimeType: media.mimeType,
         extension: media.extension,
+        attachmentId: media.attachmentId,
         durationSeconds: duration,
       );
       _ensureCurrentUser(userId, generation, operation: 'media upload');

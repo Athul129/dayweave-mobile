@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
@@ -14,6 +15,7 @@ const noteVideoMaxDurationSeconds = 10.0;
 
 class PreparedNoteMedia {
   const PreparedNoteMedia({
+    required this.attachmentId,
     required this.fileName,
     required this.bytes,
     required this.mediaType,
@@ -22,6 +24,7 @@ class PreparedNoteMedia {
     required this.durationSeconds,
   });
 
+  final String attachmentId;
   final String fileName;
   final Uint8List bytes;
   final NoteAttachmentMediaType mediaType;
@@ -120,6 +123,7 @@ class DefaultNoteMediaPreparationService
         );
       }
       return PreparedNoteMedia(
+        attachmentId: _generateUuidV4(),
         fileName: _jpegName(fileName),
         bytes: jpegBytes,
         mediaType: NoteAttachmentMediaType.image,
@@ -147,6 +151,7 @@ class DefaultNoteMediaPreparationService
         );
       }
       return PreparedNoteMedia(
+        attachmentId: _generateUuidV4(),
         fileName: fileName,
         bytes: bytes,
         mediaType: NoteAttachmentMediaType.video,
@@ -191,6 +196,17 @@ class DefaultNoteMediaPreparationService
       );
     }
   }
+}
+
+String _generateUuidV4() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex =
+      bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+      '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
 }
 
 String _extensionForMime(String mimeType) {

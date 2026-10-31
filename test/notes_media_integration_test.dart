@@ -51,6 +51,7 @@ class _Preparation implements NoteMediaPreparationService {
     }
     final video = mimeType.startsWith('video/');
     return PreparedNoteMedia(
+      attachmentId: 'prepared-$fileName',
       fileName: fileName,
       bytes: bytes,
       mediaType:
@@ -105,6 +106,7 @@ class _Attachments implements NoteAttachmentRepository {
   final List<NoteAttachment> uploaded = [];
   final List<String> events = [];
   final List<(String, String, int?)> uploadCalls = [];
+  final List<String?> uploadAttachmentIds = [];
   final Map<int, Object> uploadErrors = {};
   Object? deleteError;
   Object? fetchError;
@@ -140,11 +142,13 @@ class _Attachments implements NoteAttachmentRepository {
     required NoteAttachmentMediaType mediaType,
     required String mimeType,
     required String extension,
+    String? attachmentId,
     int? durationSeconds,
   }) async {
     final marker = bytes.first;
     events.add('start-$marker');
     uploadCalls.add((userId, noteId, durationSeconds));
+    uploadAttachmentIds.add(attachmentId);
     if (pendingUpload case final pending?) {
       final attachment = await pending.future;
       uploaded.add(attachment);
@@ -153,7 +157,7 @@ class _Attachments implements NoteAttachmentRepository {
     }
     if (uploadErrors[marker] case final error?) throw error;
     final attachment = NoteAttachment(
-      id: 'attachment-${++_nextId}',
+      id: attachmentId ?? 'attachment-${++_nextId}',
       noteId: noteId,
       userId: userId,
       storagePath: '$userId/$noteId/attachment-$_nextId.$extension',
@@ -282,6 +286,7 @@ void main() {
     await controller.uploadPreparedMedia(noteId: note.id, media: prepared);
 
     expect(attachments.uploadCalls, [('user-1', note.id, 10)]);
+    expect(attachments.uploadAttachmentIds, ['prepared-clip.mp4']);
     expect(attachments.uploaded.single.durationSeconds, 10);
   });
 

@@ -150,18 +150,22 @@ class _NoteAttachmentGalleryState extends State<NoteAttachmentGallery> {
                       index++)
                     Semantics(
                       button: true,
-                      label: 'Go to attachment ${index + 1}',
-                      child: InkWell(
-                        key: Key('attachment-dot-$index'),
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () => _jumpTo(index),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: CircleAvatar(
-                            radius: 4,
-                            backgroundColor: index == _index
-                                ? DayweaveColors.marigold
-                                : DayweaveColors.line,
+                      label:
+                          '${widget.attachments[index].mediaType == NoteAttachmentMediaType.image ? 'Image' : 'Video'} ${index + 1} of ${widget.attachments.length}',
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: InkWell(
+                          key: Key('attachment-dot-$index'),
+                          borderRadius: BorderRadius.circular(24),
+                          onTap: () => _jumpTo(index),
+                          child: Center(
+                            child: CircleAvatar(
+                              radius: 4,
+                              backgroundColor: index == _index
+                                  ? DayweaveColors.marigold
+                                  : DayweaveColors.line,
+                            ),
                           ),
                         ),
                       ),
@@ -226,6 +230,10 @@ class _ImageAttachmentPage extends StatelessWidget {
         child: Image.network(
           url,
           key: ValueKey('${attachment.id}:$url'),
+          cacheWidth: _decodePixels(
+            MediaQuery.sizeOf(context).width,
+            MediaQuery.devicePixelRatioOf(context),
+          ),
           fit: BoxFit.cover,
           loadingBuilder: (context, child, progress) => progress == null
               ? child
@@ -451,6 +459,10 @@ Future<void> _openImageViewer(
                     child: Image.network(
                       url,
                       key: ValueKey('fullscreen:$attachmentId:$url'),
+                      cacheWidth: _decodePixels(
+                        MediaQuery.sizeOf(dialogContext).width,
+                        MediaQuery.devicePixelRatioOf(dialogContext),
+                      ),
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) =>
                           _MediaUnavailable(
@@ -478,3 +490,6 @@ Future<void> _openImageViewer(
         ),
       ),
     );
+
+int _decodePixels(double logicalPixels, double devicePixelRatio) =>
+    (logicalPixels * devicePixelRatio).ceil();

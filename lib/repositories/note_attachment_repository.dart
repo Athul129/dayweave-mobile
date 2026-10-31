@@ -16,6 +16,7 @@ abstract interface class NoteAttachmentRepository {
     required NoteAttachmentMediaType mediaType,
     required String mimeType,
     required String extension,
+    String? attachmentId,
     int? durationSeconds,
   });
 
@@ -45,7 +46,19 @@ abstract interface class NoteAttachmentDataSource {
     required String mimeType,
   });
 
+  Future<bool> uploadObjectIfAbsent({
+    required String path,
+    required Uint8List bytes,
+    required String mimeType,
+  });
+
   Future<Map<String, dynamic>> insertMetadata(Map<String, dynamic> values);
+
+  Future<Map<String, dynamic>?> fetchMetadataById({
+    required String attachmentId,
+    required String userId,
+    required String noteId,
+  });
 
   Future<List<Map<String, dynamic>>> fetchMetadata({
     required String userId,
@@ -82,11 +95,42 @@ class SupabaseNoteAttachmentDataSource implements NoteAttachmentDataSource {
   }
 
   @override
+  Future<bool> uploadObjectIfAbsent({
+    required String path,
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
+    try {
+      await uploadObject(path: path, bytes: bytes, mimeType: mimeType);
+      return true;
+    } on StorageException catch (error) {
+      if (error.statusCode == '409') return false;
+      rethrow;
+    }
+  }
+
+  @override
   Future<Map<String, dynamic>> insertMetadata(
       Map<String, dynamic> values) async {
     final row =
         await _client.from('note_attachments').insert(values).select().single();
     return row;
+  }
+
+  @override
+  Future<Map<String, dynamic>?> fetchMetadataById({
+    required String attachmentId,
+    required String userId,
+    required String noteId,
+  }) async {
+    final rows = await _client
+        .from('note_attachments')
+        .select()
+        .eq('id', attachmentId)
+        .eq('user_id', userId)
+        .eq('note_id', noteId)
+        .limit(1);
+    return rows.isEmpty ? null : rows.first;
   }
 
   @override
@@ -143,6 +187,22 @@ class NoteAttachmentUploadCleanupException implements Exception {
       'object cleanup also failed ($cleanupError).';
 }
 
+class NoteAttachmentMetadataReconciliationRequiredException
+    implements Exception {
+  const NoteAttachmentMetadataReconciliationRequiredException({
+    required this.metadataError,
+    required this.lookupError,
+  });
+
+  final Object metadataError;
+  final Object lookupError;
+
+  @override
+  String toString() =>
+      'Attachment metadata state could not be reconciled after insertion '
+      'failure: $metadataError; lookup failed: $lookupError.';
+}
+
 class NoteAttachmentObjectRemovalUnconfirmedException implements Exception {
   const NoteAttachmentObjectRemovalUnconfirmedException(this.storagePath);
 
@@ -193,6 +253,7 @@ class SupabaseNoteAttachmentRepository implements NoteAttachmentRepository {
     required NoteAttachmentMediaType mediaType,
     required String mimeType,
     required String extension,
+    String? attachmentId,
     int? durationSeconds,
   }) async {
     if (userId.isEmpty || noteId.isEmpty) {
@@ -206,18 +267,26 @@ class SupabaseNoteAttachmentRepository implements NoteAttachmentRepository {
       throw ArgumentError.value(durationSeconds, 'durationSeconds');
     }
 
-    final attachmentId = _idGenerator();
+    final stableAttachmentId = attachmentId ?? _idGenerator();
+    _validatePathSegment(stableAttachmentId, 'attachmentId');
+    final existingRow = await _dataSource.fetchMetadataById(
+      attachmentId: stableAttachmentId,
+      userId: userId,
+      noteId: noteId,
+    );
+    if (existingRow != null) return NoteAttachment.fromDatabase(existingRow);
     final normalizedExtension =
         extension.replaceFirst(RegExp(r'^\.'), '').toLowerCase();
-    final storagePath = '$userId/$noteId/$attachmentId.$normalizedExtension';
-    await _dataSource.uploadObject(
+    final storagePath =
+        '$userId/$noteId/$stableAttachmentId.$normalizedExtension';
+    await _dataSource.uploadObjectIfAbsent(
       path: storagePath,
       bytes: bytes,
       mimeType: mimeType,
     );
 
     final metadata = <String, dynamic>{
-      'id': attachmentId,
+      'id': stableAttachmentId,
       'note_id': noteId,
       'user_id': userId,
       'storage_path': storagePath,
@@ -231,6 +300,20 @@ class SupabaseNoteAttachmentRepository implements NoteAttachmentRepository {
     try {
       row = await _dataSource.insertMetadata(metadata);
     } catch (metadataError, stackTrace) {
+      Map<String, dynamic>? existing;
+      try {
+        existing = await _dataSource.fetchMetadataById(
+          attachmentId: stableAttachmentId,
+          userId: userId,
+          noteId: noteId,
+        );
+      } catch (lookupError) {
+        throw NoteAttachmentMetadataReconciliationRequiredException(
+          metadataError: metadataError,
+          lookupError: lookupError,
+        );
+      }
+      if (existing != null) return NoteAttachment.fromDatabase(existing);
       try {
         final removed = await _dataSource.removeObject(storagePath);
         if (!removed) {

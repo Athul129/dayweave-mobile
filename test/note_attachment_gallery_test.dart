@@ -41,6 +41,13 @@ void main() {
     )));
     await tester.pumpAndSettle();
 
+    final galleryImage = tester.widget<Image>(
+      find.byKey(const ValueKey('image-1:https://media.invalid/image-1')),
+    );
+    final galleryDecode = galleryImage.image as ResizeImage;
+    expect(galleryDecode.width, greaterThan(0));
+    expect(galleryDecode.height, isNull);
+
     final imageRect = tester.getRect(
       find.byKey(const Key('attachment-image-image-1')),
     );
@@ -49,6 +56,12 @@ void main() {
 
     expect(find.byKey(const Key('fullscreen-image-viewer')), findsOneWidget);
     expect(find.byKey(const Key('close-image-viewer')), findsOneWidget);
+    final fullscreenImage = tester.widget<Image>(find.byKey(
+      const ValueKey('fullscreen:image-1:https://media.invalid/image-1'),
+    ));
+    final fullscreenDecode = fullscreenImage.image as ResizeImage;
+    expect(fullscreenDecode.width, greaterThanOrEqualTo(galleryDecode.width!));
+    expect(fullscreenDecode.height, isNull);
     await tester.tap(find.byKey(const Key('close-image-viewer')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('fullscreen-image-viewer')), findsNothing);
@@ -76,7 +89,14 @@ void main() {
 
     expect(find.text('2 / 2'), findsOneWidget);
     expect(find.text('Video playback surface'), findsOneWidget);
+    expect(find.bySemanticsLabel('Image 1 of 2'), findsOneWidget);
+    expect(find.bySemanticsLabel('Video 2 of 2'), findsOneWidget);
     expect(find.text('Video · 8s'), findsOneWidget);
+    expect(tester.getSize(find.byKey(const Key('attachment-dot-0'))),
+        const Size(48, 48));
+    await tester.tap(find.byKey(const Key('attachment-dot-0')));
+    await tester.pumpAndSettle();
+    expect(find.text('1 / 2'), findsOneWidget);
   });
 
   testWidgets('expired image URL exposes a refresh action', (tester) async {

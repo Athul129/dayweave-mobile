@@ -12,6 +12,11 @@ class _FakeDataSource implements NoteAttachmentDataSource {
   String? fetchedNoteId;
   final List<(String, int)> signedRequests = [];
   Object? insertError;
+  Object? firstUploadError;
+  bool objectExists = false;
+  int uploadAttempts = 0;
+  Object? fetchMetadataByIdError;
+  int fetchMetadataByIdCalls = 0;
   Object? removeError;
   bool removalConfirmed = true;
   Object? deleteMetadataError;
@@ -40,12 +45,53 @@ class _FakeDataSource implements NoteAttachmentDataSource {
     Map<String, dynamic> values,
   ) async {
     events.add('insert-metadata');
-    insertedRows.add(Map.of(values));
     if (insertError case final error?) throw error;
+    insertedRows.add(Map.of(values));
     return {
       ...values,
       'created_at': '2026-10-29T10:30:00Z',
     };
+  }
+
+  @override
+  Future<bool> uploadObjectIfAbsent({
+    required String path,
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
+    uploadAttempts++;
+    if (uploadAttempts == 1) {
+      final error = firstUploadError;
+      if (error != null) {
+        objectExists = true;
+        throw error;
+      }
+    }
+    if (objectExists) return false;
+    await uploadObject(path: path, bytes: bytes, mimeType: mimeType);
+    objectExists = true;
+    return true;
+  }
+
+  @override
+  Future<Map<String, dynamic>?> fetchMetadataById({
+    required String attachmentId,
+    required String userId,
+    required String noteId,
+  }) async {
+    fetchMetadataByIdCalls++;
+    if (fetchMetadataByIdCalls > 1) {
+      final error = fetchMetadataByIdError;
+      if (error != null) throw error;
+    }
+    for (final row in [...fetchRows, ...insertedRows]) {
+      if (row['id'] == attachmentId &&
+          row['user_id'] == userId &&
+          row['note_id'] == noteId) {
+        return row;
+      }
+    }
+    return null;
   }
 
   @override
@@ -214,6 +260,76 @@ void main() {
       );
     });
 
+    test('stable attachment ID makes retry return existing metadata', () async {
+      final source = _FakeDataSource();
+      final repository = _repository(source);
+      final bytes = Uint8List.fromList([1, 2, 3]);
+
+      final first = await repository.uploadPreparedMedia(
+        userId: 'user-1',
+        noteId: 'note-1',
+        bytes: bytes,
+        mediaType: NoteAttachmentMediaType.image,
+        mimeType: 'image/jpeg',
+        extension: 'jpg',
+        attachmentId: 'stable-id',
+      );
+      final eventCount = source.events.length;
+
+      final retry = await repository.uploadPreparedMedia(
+        userId: 'user-1',
+        noteId: 'note-1',
+        bytes: bytes,
+        mediaType: NoteAttachmentMediaType.image,
+        mimeType: 'image/jpeg',
+        extension: 'jpg',
+        attachmentId: 'stable-id',
+      );
+
+      expect(first.id, 'stable-id');
+      expect(retry.id, 'stable-id');
+      expect(retry.storagePath, first.storagePath);
+      expect(source.insertedRows, hasLength(1));
+      expect(source.events.length, eventCount);
+    });
+
+    test('retry after lost upload response reuses the existing object path',
+        () async {
+      final source = _FakeDataSource()
+        ..firstUploadError = StateError('upload response lost');
+      final repository = _repository(source);
+      final bytes = Uint8List.fromList([1, 2, 3]);
+
+      await expectLater(
+        repository.uploadPreparedMedia(
+          userId: 'user-1',
+          noteId: 'note-1',
+          bytes: bytes,
+          mediaType: NoteAttachmentMediaType.image,
+          mimeType: 'image/jpeg',
+          extension: 'jpg',
+          attachmentId: 'stable-id',
+        ),
+        throwsA(isA<StateError>()),
+      );
+
+      final retry = await repository.uploadPreparedMedia(
+        userId: 'user-1',
+        noteId: 'note-1',
+        bytes: bytes,
+        mediaType: NoteAttachmentMediaType.image,
+        mimeType: 'image/jpeg',
+        extension: 'jpg',
+        attachmentId: 'stable-id',
+      );
+
+      expect(retry.id, 'stable-id');
+      expect(retry.storagePath, 'user-1/note-1/stable-id.jpg');
+      expect(source.uploadAttempts, 2);
+      expect(source.insertedRows, hasLength(1));
+      expect(source.events, ['insert-metadata']);
+    });
+
     test('fetch scopes by user and note and maps ordered signed URLs',
         () async {
       final source = _FakeDataSource()
@@ -311,6 +427,36 @@ void main() {
                   cleanupFailure),
         ),
       );
+    });
+
+    test(
+        'requires reconciliation when metadata lookup fails after insert error',
+        () async {
+      final insertFailure = StateError('metadata insert response lost');
+      final lookupFailure = StateError('metadata lookup unavailable');
+      final source = _FakeDataSource()
+        ..insertError = insertFailure
+        ..fetchMetadataByIdError = lookupFailure;
+
+      await expectLater(
+        _repository(source, idGenerator: () => 'stable-id').uploadPreparedMedia(
+          userId: 'user-1',
+          noteId: 'note-1',
+          bytes: Uint8List.fromList([1]),
+          mediaType: NoteAttachmentMediaType.image,
+          mimeType: 'image/jpeg',
+          extension: 'jpg',
+        ),
+        throwsA(
+          isA<NoteAttachmentMetadataReconciliationRequiredException>()
+              .having((error) => error.metadataError, 'metadataError',
+                  insertFailure)
+              .having(
+                  (error) => error.lookupError, 'lookupError', lookupFailure),
+        ),
+      );
+      expect(source.events, ['upload', 'insert-metadata']);
+      expect(source.removedPath, isNull);
     });
 
     test('deletes Storage object before user-scoped metadata', () async {

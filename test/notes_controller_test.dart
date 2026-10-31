@@ -143,6 +143,7 @@ class _FakeNoteAttachmentRepository implements NoteAttachmentRepository {
     required NoteAttachmentMediaType mediaType,
     required String mimeType,
     required String extension,
+    String? attachmentId,
     int? durationSeconds,
   }) =>
       throw UnimplementedError();

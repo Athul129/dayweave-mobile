@@ -887,7 +887,10 @@ class _LooseNotesScreenState extends ConsumerState<LooseNotesScreen> {
                 media: media,
               );
         } catch (error) {
-          if (error is NoteAttachmentUploadCleanupException && mounted) {
+          if ((error is NoteAttachmentUploadCleanupException ||
+                  error
+                      is NoteAttachmentMetadataReconciliationRequiredException) &&
+              mounted) {
             setState(() => _cleanupUnconfirmedMedia = media);
           }
           rethrow;
@@ -909,12 +912,15 @@ class _LooseNotesScreenState extends ConsumerState<LooseNotesScreen> {
       _showFeedback(editingId == null ? 'Note saved' : 'Note updated');
     } catch (error) {
       if (!mounted || ref.read(notesProvider).userId != startingUserId) return;
-      final message = error is NoteAttachmentUploadCleanupException
-          ? 'Upload cleanup could not be confirmed. This file is blocked from retry to avoid a duplicate; it may remain in Storage and needs reconciliation.'
-          : _pendingMedia.isNotEmpty && _editingNoteId != null
-              ? 'Some attachments could not be uploaded. Retry to continue; completed uploads will not be sent again.'
-              : _mutationMessage(
-                  error, 'Note could not be saved. Please try again.');
+      final message = error
+              is NoteAttachmentMetadataReconciliationRequiredException
+          ? 'Attachment metadata could not be verified. Retry is blocked to avoid a duplicate; reconcile this file before trying again.'
+          : error is NoteAttachmentUploadCleanupException
+              ? 'Upload cleanup could not be confirmed. This file is blocked from retry to avoid a duplicate; it may remain in Storage and needs reconciliation.'
+              : _pendingMedia.isNotEmpty && _editingNoteId != null
+                  ? 'Some attachments could not be uploaded. Retry to continue; completed uploads will not be sent again.'
+                  : _mutationMessage(
+                      error, 'Note could not be saved. Please try again.');
       _showFeedback(message);
     } finally {
       if (mounted) {
