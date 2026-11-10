@@ -3,8 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:dayweave_mobile/core/date_time/dayweave_date_time.dart';
 import 'package:dayweave_mobile/features/auth/application/current_user_provider.dart';
+import 'package:dayweave_mobile/features/focus/application/focus_session_controller.dart';
 import 'package:dayweave_mobile/features/today/application/today_controller.dart';
 import 'package:dayweave_mobile/features/today/application/today_state.dart';
+import 'package:dayweave_mobile/features/week/application/this_week_controller.dart';
 import 'package:dayweave_mobile/models/task.dart';
 import 'package:dayweave_mobile/repositories/task_repository.dart';
 import 'package:dayweave_mobile/services/providers.dart';
@@ -405,5 +407,40 @@ void main() {
       throwsStateError,
     );
     expect(controller.state.tasks, same(before));
+  });
+
+  test('running and paused Focus tasks cannot be mutated in Today', () async {
+    final focused = controllerTask('focused', '09:00');
+    final unrelated = controllerTask('unrelated', '10:00');
+    final repository = FakeTaskRepository([focused, unrelated]);
+    final container = controllerContainer(repository);
+    addTearDown(container.dispose);
+    final controller = container.read(todayControllerProvider.notifier);
+    await Future<void>.delayed(Duration.zero);
+    final focus = container.read(focusSessionProvider.notifier);
+    final draft = draftFor(focused, time: '09:30');
+
+    focus.start(focused, now: DateTime(2026, 10, 31, 9));
+    await expectLater(controller.updateTask(focused.id, draft),
+        throwsA(isA<FocusProtectedTaskMutationException>()));
+    await expectLater(controller.completeTask(focused.id),
+        throwsA(isA<FocusProtectedTaskMutationException>()));
+    await expectLater(controller.uncompleteTask(focused.id),
+        throwsA(isA<FocusProtectedTaskMutationException>()));
+    await expectLater(controller.deleteTask(focused.id),
+        throwsA(isA<FocusProtectedTaskMutationException>()));
+
+    focus.pause(now: DateTime(2026, 10, 31, 9, 0, 1));
+    await expectLater(controller.updateTask(focused.id, draft),
+        throwsA(isA<FocusProtectedTaskMutationException>()));
+    await expectLater(controller.completeTask(focused.id),
+        throwsA(isA<FocusProtectedTaskMutationException>()));
+    await expectLater(controller.deleteTask(focused.id),
+        throwsA(isA<FocusProtectedTaskMutationException>()));
+
+    expect(repository.updatedId, isNull);
+    expect(repository.deletedIds, isEmpty);
+    await controller.completeTask(unrelated.id);
+    expect(repository.updatedId, unrelated.id);
   });
 }

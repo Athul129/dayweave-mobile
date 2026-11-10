@@ -10,6 +10,7 @@ import '../application/today_intention_controller.dart';
 import '../application/today_focus_summary_controller.dart';
 import '../application/today_reflection_controller.dart';
 import '../application/today_state.dart';
+import '../../week/application/this_week_controller.dart';
 import 'widgets/today_task_card.dart';
 import 'widgets/today_task_form.dart';
 import 'widgets/today_reflection_card.dart';
@@ -232,11 +233,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       await (task.done
           ? controller.uncompleteTask(task.id)
           : controller.completeTask(task.id));
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Task could not be updated. Please try again.')),
+          SnackBar(
+              content: Text(error is FocusProtectedTaskMutationException
+                  ? "This task can't be changed while its Focus session is active."
+                  : 'Task could not be updated. Please try again.')),
         );
       }
     }

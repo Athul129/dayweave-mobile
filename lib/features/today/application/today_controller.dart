@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/date_time/dayweave_date_time.dart';
 import '../../../features/auth/application/current_user_provider.dart';
+import '../../../features/focus/application/focus_session_controller.dart';
+import '../../../features/week/application/this_week_controller.dart';
 import '../../../models/task.dart';
 import '../../../repositories/task_repository.dart';
 import '../../../services/providers.dart';
@@ -74,6 +76,7 @@ class TodayController extends Notifier<TodayState> {
   Future<Task?> updateTask(String id, TodayTaskDraft draft) async {
     final current = state.tasks.where((task) => task.id == id).firstOrNull;
     if (current == null) throw ArgumentError.value(id, 'id');
+    _ensureFocusMutationAllowed(id);
     final errors = validateTodayTaskDraft(draft, state.date);
     if (current.done && draft.date.iso != current.date) {
       errors['date'] = 'Completed tasks cannot be moved.';
@@ -94,6 +97,7 @@ class TodayController extends Notifier<TodayState> {
   }
 
   Future<bool> setCompleted(String id, bool completed) async {
+    _ensureFocusMutationAllowed(id);
     final updated = await _mutations
         .add(() => _repository.update(_requireUser(), id, {'done': completed}));
     state = state.copyWith(
@@ -108,12 +112,20 @@ class TodayController extends Notifier<TodayState> {
   Future<bool> uncompleteTask(String id) => setCompleted(id, false);
 
   Future<void> deleteTask(String id) async {
+    _ensureFocusMutationAllowed(id);
     await _mutations.add(() => _repository.delete(_requireUser(), id));
     state = state.copyWith(
         tasks:
             state.tasks.where((task) => task.id != id).toList(growable: false),
         activeTaskId: state.activeTaskId == id ? null : state.activeTaskId,
         error: null);
+  }
+
+  void _ensureFocusMutationAllowed(String id) {
+    final focus = ref.read(focusSessionProvider);
+    if (focus.task?.id == id && (focus.isRunning || focus.isPaused)) {
+      throw const FocusProtectedTaskMutationException();
+    }
   }
 
   Future<int> clearToday() async {

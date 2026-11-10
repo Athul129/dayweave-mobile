@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/date_time/dayweave_date_time.dart';
 import '../../../../core/theme/dayweave_theme.dart';
 import '../../../../models/task.dart';
+import '../../../week/application/this_week_controller.dart';
 import '../../application/today_state.dart';
 
 const defaultTaskNote = 'A small, clear next step.';
@@ -186,11 +187,13 @@ class _TodayTaskFormState extends State<TodayTaskForm> {
     try {
       await widget.onDelete!();
       if (mounted) Navigator.of(context).pop();
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         setState(() {
           _deleting = false;
-          _formError = 'Task could not be deleted. Please try again.';
+          _formError = error is FocusProtectedTaskMutationException
+              ? "This task can't be deleted while its Focus session is active."
+              : 'Task could not be deleted. Please try again.';
         });
       }
     }
