@@ -10,6 +10,7 @@ import '../application/today_intention_controller.dart';
 import '../application/today_focus_summary_controller.dart';
 import '../application/today_reflection_controller.dart';
 import '../application/today_state.dart';
+import '../../preferences/application/preferences_controller.dart';
 import '../../week/application/this_week_controller.dart';
 import 'widgets/today_task_card.dart';
 import 'widgets/today_task_form.dart';
@@ -247,11 +248,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
   Future<void> _openCreate([String title = '']) async {
     _brainDumpController.clear();
+    await ref.read(preferencesProvider.notifier).load();
+    if (!mounted) return;
+    final date = ref.read(todayControllerProvider).date;
+    final minutes = ref.read(preferencesProvider).defaultTaskMinutes;
     await showTodayTaskFormSheet(
       context: context,
-      today: ref.read(todayControllerProvider).date,
-      initial: defaultTodayTaskDraft(ref.read(todayControllerProvider).date,
-          title: title.trim()),
+      today: date,
+      initial:
+          defaultTodayTaskDraft(date, title: title.trim(), minutes: minutes),
       onSave: (draft) =>
           ref.read(todayControllerProvider.notifier).createTask(draft),
     );

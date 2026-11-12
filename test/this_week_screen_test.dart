@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:dayweave_mobile/core/date_time/dayweave_date_time.dart';
 import 'package:dayweave_mobile/features/auth/application/current_user_provider.dart';
 import 'package:dayweave_mobile/features/focus/application/focus_session_controller.dart';
+import 'package:dayweave_mobile/features/preferences/application/preferences_controller.dart';
+import 'package:dayweave_mobile/features/preferences/application/preferences_storage.dart';
 import 'package:dayweave_mobile/features/week/presentation/this_week_screen.dart';
 import 'package:dayweave_mobile/models/task.dart';
 import 'package:dayweave_mobile/repositories/task_repository.dart';
@@ -81,10 +83,23 @@ class _FakeRepository implements TaskRepository {
   }
 }
 
+class _FakePreferencesStorage implements PreferencesStorage {
+  int? value;
+
+  @override
+  Future<int?> readDefaultTaskMinutes() async => value;
+
+  @override
+  Future<void> writeDefaultTaskMinutes(int value) async {
+    this.value = value;
+  }
+}
+
 Widget _app(_FakeRepository repository) => ProviderScope(
       overrides: [
         taskRepositoryProvider.overrideWithValue(repository),
         currentUserIdProvider.overrideWithValue('user-1'),
+        preferencesStorageProvider.overrideWithValue(_FakePreferencesStorage()),
       ],
       child: const MaterialApp(home: Scaffold(body: ThisWeekScreen())),
     );
@@ -95,6 +110,7 @@ Widget _appWithFocus(_FakeRepository repository, Task task,
       overrides: [
         taskRepositoryProvider.overrideWithValue(repository),
         currentUserIdProvider.overrideWithValue('user-1'),
+        preferencesStorageProvider.overrideWithValue(_FakePreferencesStorage()),
       ],
       child: _FocusHarness(task: task, paused: paused, completed: completed),
     );
@@ -276,6 +292,9 @@ void main() {
     final sheet = find.byType(BottomSheet);
     final current = find.descendant(
         of: sheet, matching: find.text(_dateLabel(LocalDate.today())));
+    final scrollable = _sheetScrollable(sheet);
+    expect(scrollable, findsOneWidget);
+    await tester.scrollUntilVisible(current, 80, scrollable: scrollable);
     expect(current, findsOneWidget);
     final currentTile =
         find.ancestor(of: current, matching: find.byType(ListTile));
@@ -324,7 +343,8 @@ void main() {
     await tester.scrollUntilVisible(destination, 80, scrollable: scrollable);
     await tester.tap(destination);
     await tester.pumpAndSettle();
-    await tester.tap(find.bySemanticsLabel(_dateLabel(target)));
+    await tester.tap(find.bySemanticsLabel(RegExp(
+        '^${_weekdays[target.asLocalDateTime.weekday - 1]}, ${target.month}/${target.day}')));
     await tester.pump();
     expect(find.text('today'), findsOneWidget);
     expect(repository.tasks.single.date, target.iso);
@@ -380,7 +400,9 @@ void main() {
     final task = _task('focused', today);
     await tester.pumpWidget(_appWithFocus(_FakeRepository([task]), task));
     await _settle(tester);
-    await tester.tap(find.byTooltip('Edit focused'));
+    final edit = find.byTooltip('Edit focused');
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
     await tester.pump();
     expect(find.text('Tune the details'), findsNothing);
     expect(
@@ -394,7 +416,9 @@ void main() {
     await tester
         .pumpWidget(_appWithFocus(_FakeRepository([task]), task, paused: true));
     await _settle(tester);
-    await tester.tap(find.byTooltip('Edit paused'));
+    final edit = find.byTooltip('Edit paused');
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
     await tester.pump();
     expect(find.text('Tune the details'), findsNothing);
     expect(
@@ -408,7 +432,9 @@ void main() {
     await tester.pumpWidget(
         _appWithFocus(_FakeRepository([task]), task, completed: true));
     await _settle(tester);
-    await tester.tap(find.byTooltip('Edit completed'));
+    final edit = find.byTooltip('Edit completed');
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
     await tester.pumpAndSettle();
     expect(find.text('Tune the details'), findsOneWidget);
   });
@@ -419,7 +445,9 @@ void main() {
     await tester.pumpWidget(
         _appWithFocus(_FakeRepository([focused, unrelated]), focused));
     await _settle(tester);
-    await tester.tap(find.byTooltip('Edit unrelated'));
+    final edit = find.byTooltip('Edit unrelated');
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
     await tester.pumpAndSettle();
     expect(find.text('Tune the details'), findsOneWidget);
   });

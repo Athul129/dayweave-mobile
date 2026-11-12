@@ -10,12 +10,13 @@ import '../../application/today_state.dart';
 
 const defaultTaskNote = 'A small, clear next step.';
 
-TodayTaskDraft defaultTodayTaskDraft(LocalDate date, {String title = ''}) =>
+TodayTaskDraft defaultTodayTaskDraft(LocalDate date,
+        {String title = '', int minutes = 30}) =>
     TodayTaskDraft(
       title: title,
       note: defaultTaskNote,
       time: '16:00',
-      minutes: 30,
+      minutes: minutes,
       energy: TaskEnergy.light,
       section: TaskSection.afternoon,
       date: date,

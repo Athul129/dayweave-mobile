@@ -8,6 +8,7 @@ import '../../../models/task.dart';
 import '../application/this_week_controller.dart';
 import '../application/this_week_state.dart';
 import '../../today/presentation/widgets/today_task_form.dart';
+import '../../preferences/application/preferences_controller.dart';
 
 class ThisWeekScreen extends ConsumerWidget {
   const ThisWeekScreen({super.key});
@@ -211,7 +212,7 @@ class _DayChip extends StatelessWidget {
       );
 }
 
-class _SelectedDay extends StatefulWidget {
+class _SelectedDay extends ConsumerStatefulWidget {
   const _SelectedDay(
       {required this.state,
       required this.controller,
@@ -221,10 +222,10 @@ class _SelectedDay extends StatefulWidget {
   final String? protectedFocusTaskId;
 
   @override
-  State<_SelectedDay> createState() => _SelectedDayState();
+  ConsumerState<_SelectedDay> createState() => _SelectedDayState();
 }
 
-class _SelectedDayState extends State<_SelectedDay> {
+class _SelectedDayState extends ConsumerState<_SelectedDay> {
   final Set<String> _pendingCompletionIds = <String>{};
 
   @override
@@ -281,10 +282,14 @@ class _SelectedDayState extends State<_SelectedDay> {
   }
 
   Future<void> _openCreate(BuildContext context) async {
+    await ref.read(preferencesProvider.notifier).load();
+    if (!mounted) return;
+    final minutes = ref.read(preferencesProvider).defaultTaskMinutes;
     await showTodayTaskFormSheet(
       context: context,
       today: LocalDate.today(),
-      initial: defaultTodayTaskDraft(widget.state.selectedDate),
+      initial:
+          defaultTodayTaskDraft(widget.state.selectedDate, minutes: minutes),
       onSave: widget.controller.createTask,
     );
   }

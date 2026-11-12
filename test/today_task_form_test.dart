@@ -50,4 +50,9 @@ void main() {
     expect(saved?.minutes, 30);
     expect(saved?.note, defaultTaskNote);
   });
+
+  test('default draft uses the supplied preference duration', () {
+    final draft = defaultTodayTaskDraft(today, minutes: 35);
+    expect(draft.minutes, 35);
+  });
 }

@@ -6,12 +6,12 @@ class PreferenceDurationOption extends StatelessWidget {
   const PreferenceDurationOption(
       {required this.label,
       required this.selected,
-      required this.onTap,
+      this.onTap,
       this.fullWidth = false,
       super.key});
   final String label;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool fullWidth;
 
   @override
