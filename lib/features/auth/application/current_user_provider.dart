@@ -7,5 +7,7 @@ final currentUserProvider = Provider<User?>((ref) {
   return ref.watch(authServiceProvider).currentUser;
 });
 
-final currentUserIdProvider =
-    Provider<String?>((ref) => ref.watch(authServiceProvider).currentUser?.id);
+final currentUserIdProvider = Provider<String?>((ref) {
+  ref.watch(authStateProvider);
+  return ref.watch(authServiceProvider).currentUser?.id;
+});

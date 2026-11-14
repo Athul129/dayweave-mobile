@@ -32,9 +32,9 @@ class _FocusHistoryScreenState extends ConsumerState<FocusHistoryScreen> {
       }
     });
     final history = ref.watch(focusHistoryProvider);
-    final content = history.isLoading
+    final content = history.isLoading && history.sessions.isEmpty
         ? _loading(context)
-        : history.error != null
+        : history.error != null && history.sessions.isEmpty
             ? _error(
                 context, () => ref.read(focusHistoryProvider.notifier).load())
             : history.filteredSessions.isEmpty
@@ -58,6 +58,15 @@ class _FocusHistoryScreenState extends ConsumerState<FocusHistoryScreen> {
               const SizedBox(height: 16),
               _rangeSelector(context, history),
               const SizedBox(height: 14),
+              if (history.isRefreshing) const LinearProgressIndicator(),
+              if (history.isRefreshing) const SizedBox(height: 10),
+              if (history.error != null && history.sessions.isNotEmpty)
+                _refreshError(
+                  context,
+                  () => ref.read(focusHistoryProvider.notifier).load(),
+                ),
+              if (history.error != null && history.sessions.isNotEmpty)
+                const SizedBox(height: 14),
               content,
             ],
           ),
@@ -362,6 +371,24 @@ class _FocusHistoryScreenState extends ConsumerState<FocusHistoryScreen> {
         'No focus sessions yet',
         'Complete a focus session to see it here.',
         null,
+      );
+
+  Widget _refreshError(BuildContext context, VoidCallback onRetry) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: DayweaveColors.card,
+          border: Border.all(color: DayweaveColors.coral),
+          borderRadius: DayweaveRadii.md,
+        ),
+        child: Row(
+          children: [
+            const Expanded(
+              child: Text('Unable to refresh Focus History.'),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
       );
 
   Widget _loading(BuildContext context) => Container(

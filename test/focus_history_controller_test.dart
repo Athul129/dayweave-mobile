@@ -245,6 +245,69 @@ void main() {
     expect(container.read(focusHistoryProvider).sessions, hasLength(6));
   });
 
+  test('refresh preserves sessions while pending and replaces them on success',
+      () async {
+    final repository = _FakeFocusRepository([
+      _session('old', DateTime(2026, 10, 14, 9)),
+    ]);
+    final container = _container(repository, now: now);
+    addTearDown(container.dispose);
+    final controller = container.read(focusHistoryProvider.notifier);
+    await controller.load();
+
+    repository.response = Completer<List<FocusSession>>();
+    final refresh = controller.load();
+    expect(container.read(focusHistoryProvider).isLoading, isFalse);
+    expect(container.read(focusHistoryProvider).isRefreshing, isTrue);
+    expect(
+      container.read(focusHistoryProvider).sessions.single.id,
+      'old',
+    );
+
+    repository.response!.complete([
+      _session('new', DateTime(2026, 10, 14, 10)),
+    ]);
+    repository.response = null;
+    await refresh;
+
+    final state = container.read(focusHistoryProvider);
+    expect(state.isRefreshing, isFalse);
+    expect(state.error, isNull);
+    expect(state.sessions.single.id, 'new');
+  });
+
+  test('failed refresh preserves sessions and retry can recover', () async {
+    final repository = _FakeFocusRepository([
+      _session('loaded', DateTime(2026, 10, 14, 9), plannedSeconds: 120),
+    ]);
+    final container = _container(repository, now: now);
+    addTearDown(container.dispose);
+    final controller = container.read(focusHistoryProvider.notifier);
+    await controller.load();
+
+    repository.response = Completer<List<FocusSession>>();
+    final failedRefresh = controller.load();
+    expect(container.read(focusHistoryProvider).isRefreshing, isTrue);
+    repository.response!.completeError(StateError('offline'));
+    repository.response = null;
+    await failedRefresh;
+
+    var state = container.read(focusHistoryProvider);
+    expect(state.isLoading, isFalse);
+    expect(state.isRefreshing, isFalse);
+    expect(state.error, isA<StateError>());
+    expect(state.sessions.single.id, 'loaded');
+    expect(state.plannedSeconds, 120);
+
+    repository.sessions = [
+      _session('recovered', DateTime(2026, 10, 14, 10)),
+    ];
+    await controller.load();
+    state = container.read(focusHistoryProvider);
+    expect(state.error, isNull);
+    expect(state.sessions.single.id, 'recovered');
+  });
+
   testWidgets('screen Retry reloads history after an error', (tester) async {
     final repository = _FakeFocusRepository([])
       ..error = StateError('temporary error');
@@ -271,6 +334,47 @@ void main() {
 
     expect(repository.fetchCalls, 2);
     expect(find.text('Task loaded'), findsOneWidget);
+  });
+
+  testWidgets('refresh failure keeps visible history and offers retry',
+      (tester) async {
+    final repository = _FakeFocusRepository([
+      _session('loaded', DateTime(2026, 10, 14, 9)),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          focusRepositoryProvider.overrideWithValue(repository),
+          currentUserIdProvider.overrideWithValue('user-7'),
+          focusHistoryProvider.overrideWith(
+            () => FocusHistoryController(clock: () => now),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: FocusHistoryScreen())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Task loaded'), findsOneWidget);
+
+    repository.error = StateError('offline');
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, 400),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Task loaded'), findsOneWidget);
+    expect(find.text('Unable to refresh Focus History.'), findsOneWidget);
+
+    repository
+      ..error = null
+      ..sessions = [_session('recovered', DateTime(2026, 10, 14, 10))];
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Task loaded'), findsNothing);
+    expect(find.text('Task recovered'), findsOneWidget);
+    expect(find.text('Unable to refresh Focus History.'), findsNothing);
   });
 
   testWidgets('pull to refresh reloads history and updates its summary', (
@@ -335,5 +439,81 @@ void main() {
     expect(find.text('2'), findsOneWidget);
     expect(find.text('3 min'), findsOneWidget);
     expect(find.text('No focus sessions yet'), findsNothing);
+  });
+
+  test('period filters honor local calendar boundaries', () async {
+    final localMonday = DateTime(2026, 10, 12);
+    final localFirstOfMonth = DateTime(2026, 10, 1);
+    final sessionsAtBoundaries = [
+      _session(
+          'before-monday', localMonday.subtract(const Duration(minutes: 1))),
+      _session('monday-midnight', localMonday),
+      _session('sunday', DateTime(2026, 10, 18, 23, 59, 59)),
+      _session('next-monday-midnight', DateTime(2026, 10, 19)),
+      _session('last-day-of-month', DateTime(2026, 10, 31, 23, 59, 59)),
+      _session('next-month-first-day', DateTime(2026, 11, 1)),
+      // This is a UTC instant that resolves to September 30 locally, even
+      // though its UTC calendar date is October 1.
+      _session(
+        'utc-previous-local-day',
+        localFirstOfMonth.toUtc().subtract(const Duration(minutes: 1)),
+      ),
+    ];
+    final repository = _FakeFocusRepository(sessionsAtBoundaries);
+    final container = _container(repository, now: now);
+    addTearDown(container.dispose);
+    final controller = container.read(focusHistoryProvider.notifier);
+    await controller.load();
+
+    expect(
+      container.read(focusHistoryProvider).filteredSessions.map((s) => s.id),
+      [
+        'next-month-first-day',
+        'last-day-of-month',
+        'next-monday-midnight',
+        'sunday',
+        'monday-midnight',
+        'before-monday',
+        'utc-previous-local-day',
+      ],
+    );
+
+    controller.selectPeriod(FocusHistoryPeriod.thisWeek);
+    expect(
+      container
+          .read(focusHistoryProvider)
+          .filteredSessions
+          .map((session) => session.id),
+      ['sunday', 'monday-midnight'],
+    );
+
+    controller.selectPeriod(FocusHistoryPeriod.thisMonth);
+    expect(
+      container
+          .read(focusHistoryProvider)
+          .filteredSessions
+          .map((session) => session.id),
+      [
+        'last-day-of-month',
+        'next-monday-midnight',
+        'sunday',
+        'monday-midnight',
+        'before-monday',
+      ],
+    );
+
+    controller.selectPeriod(FocusHistoryPeriod.allTime);
+    expect(
+      container.read(focusHistoryProvider).filteredSessions.map((s) => s.id),
+      [
+        'next-month-first-day',
+        'last-day-of-month',
+        'next-monday-midnight',
+        'sunday',
+        'monday-midnight',
+        'before-monday',
+        'utc-previous-local-day',
+      ],
+    );
   });
 }

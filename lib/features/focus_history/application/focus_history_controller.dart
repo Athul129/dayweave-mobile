@@ -21,6 +21,7 @@ class FocusHistoryState {
     this.sessions = const [],
     this.period = FocusHistoryPeriod.allTime,
     this.isLoading = true,
+    this.isRefreshing = false,
     this.error,
   });
 
@@ -28,6 +29,7 @@ class FocusHistoryState {
   final List<FocusSession> sessions;
   final FocusHistoryPeriod period;
   final bool isLoading;
+  final bool isRefreshing;
   final Object? error;
 
   List<FocusSession> get filteredSessions {
@@ -39,34 +41,31 @@ class FocusHistoryState {
     final endExclusive = switch (period) {
       FocusHistoryPeriod.allTime => null,
       FocusHistoryPeriod.thisWeek => DateTime(
-        _weekStart(asOf).year,
-        _weekStart(asOf).month,
-        _weekStart(asOf).day + 7,
-      ),
+          _weekStart(asOf).year,
+          _weekStart(asOf).month,
+          _weekStart(asOf).day + 7,
+        ),
       FocusHistoryPeriod.thisMonth => DateTime(asOf.year, asOf.month + 1),
     };
 
     if (start == null || endExclusive == null) return sessions;
-    return sessions
-        .where((session) {
-          final completedAt = session.completedAt.value.toLocal();
-          return !completedAt.isBefore(start) &&
-              completedAt.isBefore(endExclusive);
-        })
-        .toList(growable: false);
+    return sessions.where((session) {
+      final completedAt = session.completedAt.value.toLocal();
+      return !completedAt.isBefore(start) && completedAt.isBefore(endExclusive);
+    }).toList(growable: false);
   }
 
   int get completedCount => filteredSessions.length;
 
   int get plannedSeconds => filteredSessions.fold<int>(
-    0,
-    (total, session) => total + session.plannedDurationSeconds,
-  );
+        0,
+        (total, session) => total + session.plannedDurationSeconds,
+      );
 
   int get pausedSeconds => filteredSessions.fold<int>(
-    0,
-    (total, session) => total + session.pausedSeconds,
-  );
+        0,
+        (total, session) => total + session.pausedSeconds,
+      );
 
   List<FocusHistoryDayGroup> get dayGroups {
     final groups = <LocalDate, List<FocusSession>>{};
@@ -137,12 +136,12 @@ String formatFocusDuration(int seconds) {
 
 final focusHistoryProvider =
     NotifierProvider<FocusHistoryController, FocusHistoryState>(
-      FocusHistoryController.new,
-    );
+  FocusHistoryController.new,
+);
 
 class FocusHistoryController extends Notifier<FocusHistoryState> {
   FocusHistoryController({DateTime Function()? clock})
-    : _clock = clock ?? DateTime.now;
+      : _clock = clock ?? DateTime.now;
 
   final DateTime Function() _clock;
   late final FocusRepository _repository;
@@ -160,6 +159,7 @@ class FocusHistoryController extends Notifier<FocusHistoryState> {
       sessions: state.sessions,
       period: period,
       isLoading: state.isLoading,
+      isRefreshing: state.isRefreshing,
       error: state.error,
     );
   }
@@ -167,10 +167,13 @@ class FocusHistoryController extends Notifier<FocusHistoryState> {
   Future<void> load() async {
     final requestVersion = ++_requestVersion;
     final userId = ref.read(currentUserIdProvider);
+    final hasPreviousSessions = state.sessions.isNotEmpty;
     state = FocusHistoryState(
       asOf: _clock(),
+      sessions: state.sessions,
       period: state.period,
-      isLoading: userId != null,
+      isLoading: userId != null && !hasPreviousSessions,
+      isRefreshing: userId != null && hasPreviousSessions,
     );
 
     if (userId == null) return;
@@ -197,6 +200,7 @@ class FocusHistoryController extends Notifier<FocusHistoryState> {
         ),
         period: state.period,
         isLoading: false,
+        isRefreshing: false,
       );
     } catch (error) {
       if (requestVersion != _requestVersion ||
@@ -205,8 +209,10 @@ class FocusHistoryController extends Notifier<FocusHistoryState> {
       }
       state = FocusHistoryState(
         asOf: _clock(),
+        sessions: state.sessions,
         period: state.period,
         isLoading: false,
+        isRefreshing: false,
         error: error,
       );
     }
