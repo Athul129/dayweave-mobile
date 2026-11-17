@@ -1,6 +1,7 @@
 import 'dart:ui' show SemanticsFlag;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -196,7 +197,11 @@ List<LocalDate> _currentWeekDates() {
 }
 
 Future<_FakeRepository> _openMoveSheet(
-    WidgetTester tester, String todayDate) async {
+    WidgetTester tester, String todayDate, {double height = 600}) async {
+  tester.view.physicalSize = Size(800, height);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
   final repository = _FakeRepository([_task('today', todayDate)]);
   await tester.pumpWidget(_app(repository));
   await _settle(tester);
@@ -316,15 +321,15 @@ void main() {
 
   testWidgets('valid future-date selection updates the repository',
       (tester) async {
-    final repository = await _openMoveSheet(tester, today);
+    final repository = await _openMoveSheet(tester, today, height: 1000);
     final target = LocalDate.today().addDays(1);
     final sheet = find.byType(BottomSheet);
-    final scrollable = _sheetScrollable(sheet);
-    expect(scrollable, findsOneWidget);
-    final destination =
+    final destinationText =
         find.descendant(of: sheet, matching: find.text(_dateLabel(target)));
-    await tester.scrollUntilVisible(destination, 80, scrollable: scrollable);
-    await tester.tap(destination);
+    final destinationTile =
+        find.ancestor(of: destinationText, matching: find.byType(ListTile));
+    expect(destinationTile, findsOneWidget);
+    await tester.tap(destinationTile);
     await tester.pumpAndSettle();
     expect(repository.updateCalls, 1);
     expect(repository.updatedTaskId, 'today');
@@ -333,16 +338,17 @@ void main() {
 
   testWidgets('successful movement displays the task on its destination date',
       (tester) async {
-    final repository = await _openMoveSheet(tester, today);
+    final repository = await _openMoveSheet(tester, today, height: 1000);
     final target = LocalDate.today().addDays(1);
     final sheet = find.byType(BottomSheet);
-    final scrollable = _sheetScrollable(sheet);
-    expect(scrollable, findsOneWidget);
-    final destination =
+    final destinationText =
         find.descendant(of: sheet, matching: find.text(_dateLabel(target)));
-    await tester.scrollUntilVisible(destination, 80, scrollable: scrollable);
-    await tester.tap(destination);
+    final destinationTile =
+        find.ancestor(of: destinationText, matching: find.byType(ListTile));
+    expect(destinationTile, findsOneWidget);
+    await tester.tap(destinationTile);
     await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
     await tester.tap(find.bySemanticsLabel(RegExp(
         '^${_weekdays[target.asLocalDateTime.weekday - 1]}, ${target.month}/${target.day}')));
     await tester.pump();

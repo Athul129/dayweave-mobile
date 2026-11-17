@@ -108,7 +108,11 @@ class _FocusHistoryScreenState extends ConsumerState<FocusHistoryScreen> {
         ),
       );
 
-  Widget _rangeSelector(BuildContext context, FocusHistoryState history) => Row(
+  Widget _rangeSelector(BuildContext context, FocusHistoryState history) =>
+      Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: 8,
         children: [
           Text(
             'Show',
@@ -117,7 +121,6 @@ class _FocusHistoryScreenState extends ConsumerState<FocusHistoryScreen> {
                 .bodyMedium
                 ?.copyWith(color: DayweaveColors.ink),
           ),
-          const Spacer(),
           Container(
             constraints: const BoxConstraints(minHeight: 46),
             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -129,6 +132,7 @@ class _FocusHistoryScreenState extends ConsumerState<FocusHistoryScreen> {
             child: DropdownButtonHideUnderline(
               child: DropdownButton<FocusHistoryPeriod>(
                 value: history.period,
+                isExpanded: true,
                 icon: const Icon(Icons.expand_more, size: 18),
                 style: Theme.of(context)
                     .textTheme
@@ -315,24 +319,28 @@ class _FocusHistoryScreenState extends ConsumerState<FocusHistoryScreen> {
                         ?.copyWith(color: DayweaveColors.inkSoft),
                   ),
                   const SizedBox(height: 7),
-                  Wrap(
-                    spacing: 7,
-                    runSpacing: 5,
-                    children: [
-                      _pill(
-                        context,
-                        Icons.schedule_outlined,
-                        formatFocusDuration(session.plannedDurationSeconds),
-                        DayweaveColors.sage.withValues(alpha: .55),
-                      ),
-                      if (session.pausedSeconds > 0)
+                  LayoutBuilder(
+                    builder: (context, constraints) => Wrap(
+                      spacing: 7,
+                      runSpacing: 5,
+                      children: [
                         _pill(
                           context,
-                          Icons.pause_circle_outline,
-                          'Paused ${formatFocusDuration(session.pausedSeconds)}',
-                          const Color(0xFFF5E7CB),
+                          Icons.schedule_outlined,
+                          formatFocusDuration(session.plannedDurationSeconds),
+                          DayweaveColors.sage.withValues(alpha: .55),
+                          constraints.maxWidth,
                         ),
-                    ],
+                        if (session.pausedSeconds > 0)
+                          _pill(
+                            context,
+                            Icons.pause_circle_outline,
+                            'Paused ${formatFocusDuration(session.pausedSeconds)}',
+                            const Color(0xFFF5E7CB),
+                            constraints.maxWidth,
+                          ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -342,26 +350,38 @@ class _FocusHistoryScreenState extends ConsumerState<FocusHistoryScreen> {
         ),
       );
 
-  Widget _pill(BuildContext context, IconData icon, String text, Color color) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 15, color: DayweaveColors.inkSoft),
-            const SizedBox(width: 4),
-            Text(
-              text,
-              style: Theme.of(context)
-                  .textTheme
-                  .labelSmall
-                  ?.copyWith(color: DayweaveColors.inkSoft),
-            ),
-          ],
+  Widget _pill(
+    BuildContext context,
+    IconData icon,
+    String text,
+    Color color,
+    double maxWidth,
+  ) =>
+      ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: DayweaveColors.inkSoft),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  text,
+                  softWrap: true,
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: DayweaveColors.inkSoft),
+                ),
+              ),
+            ],
+          ),
         ),
       );
 
