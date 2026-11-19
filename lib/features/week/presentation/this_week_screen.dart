@@ -9,6 +9,7 @@ import '../application/this_week_controller.dart';
 import '../application/this_week_state.dart';
 import '../../today/presentation/widgets/today_task_form.dart';
 import '../../preferences/application/preferences_controller.dart';
+import '../../weather/presentation/weather_banner.dart';
 
 class ThisWeekScreen extends ConsumerWidget {
   const ThisWeekScreen({super.key});
@@ -30,6 +31,8 @@ class ThisWeekScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const WeatherBanner(insetHorizontally: false),
+              const SizedBox(height: DayweaveSpacing.sm),
               const _WeekIntro(),
               const SizedBox(height: 20),
               _WeekSummary(state: state),

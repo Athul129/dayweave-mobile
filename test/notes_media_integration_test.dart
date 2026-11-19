@@ -12,6 +12,8 @@ import 'package:dayweave_mobile/models/note_attachment.dart';
 import 'package:dayweave_mobile/repositories/note_attachment_repository.dart';
 import 'package:dayweave_mobile/repositories/note_repository.dart';
 import 'package:dayweave_mobile/services/providers.dart';
+import 'package:dayweave_mobile/services/location_service.dart';
+import 'package:dayweave_mobile/services/weather_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -181,6 +183,23 @@ class _Attachments implements NoteAttachmentRepository {
     if (deleteError case final error?) throw error;
     uploaded.removeWhere((item) => item.id == attachment.id);
   }
+}
+
+class _TestLocationService implements LocationService {
+  @override
+  Future<WeatherCoordinates> getCurrentLocation() async =>
+      const WeatherCoordinates(latitude: 1, longitude: 2);
+}
+
+class _TestWeatherService implements WeatherService {
+  @override
+  Future<WeatherSnapshot> fetchCurrent(WeatherCoordinates coordinates) async =>
+      WeatherSnapshot(
+        temperatureCelsius: 20,
+        weatherCode: 0,
+        isDay: true,
+        validAt: DateTime.now().toUtc(),
+      );
 }
 
 Note _note(String id, String userId, String title, String body) => Note(
@@ -392,6 +411,8 @@ void main() {
         noteMediaPickerProvider.overrideWithValue(picker),
         noteMediaPreparationProvider.overrideWithValue(preparation),
         currentUserIdProvider.overrideWith((ref) => 'user-1'),
+        locationServiceProvider.overrideWithValue(_TestLocationService()),
+        weatherServiceProvider.overrideWithValue(_TestWeatherService()),
       ],
       child: MaterialApp(
         scaffoldMessengerKey: messengerKey,
@@ -450,6 +471,8 @@ void main() {
       overrides: [
         noteRepositoryProvider.overrideWithValue(notes),
         noteAttachmentRepositoryProvider.overrideWithValue(attachments),
+        locationServiceProvider.overrideWithValue(_TestLocationService()),
+        weatherServiceProvider.overrideWithValue(_TestWeatherService()),
         noteMediaPickerProvider.overrideWithValue(
           _Picker([_picked('progress.jpg', 4, 'image/jpeg')]),
         ),
@@ -507,6 +530,8 @@ void main() {
       overrides: [
         noteRepositoryProvider.overrideWithValue(notes),
         noteAttachmentRepositoryProvider.overrideWithValue(attachments),
+        locationServiceProvider.overrideWithValue(_TestLocationService()),
+        weatherServiceProvider.overrideWithValue(_TestWeatherService()),
         noteMediaPickerProvider.overrideWithValue(picker),
         noteMediaPreparationProvider.overrideWithValue(_Preparation()),
         currentUserIdProvider.overrideWith((ref) => 'user-1'),
@@ -607,6 +632,8 @@ void main() {
       overrides: [
         noteRepositoryProvider.overrideWithValue(notes),
         noteAttachmentRepositoryProvider.overrideWithValue(attachments),
+        locationServiceProvider.overrideWithValue(_TestLocationService()),
+        weatherServiceProvider.overrideWithValue(_TestWeatherService()),
         noteMediaPickerProvider.overrideWithValue(_Picker([])),
         noteMediaPreparationProvider.overrideWithValue(_Preparation()),
         currentUserIdProvider.overrideWith((ref) => 'user-1'),

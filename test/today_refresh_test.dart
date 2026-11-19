@@ -11,6 +11,7 @@ void main() {
     final intentionGate = Completer<void>();
     final reflectionGate = Completer<void>();
     final focusGate = Completer<void>();
+    final weatherGate = Completer<void>();
 
     final refresh = refreshTodayData(
       loadTasks: () async {
@@ -33,6 +34,11 @@ void main() {
         await focusGate.future;
         calls.add('focus-completed');
       },
+      loadWeather: () async {
+        calls.add('weather-started');
+        await weatherGate.future;
+        calls.add('weather-completed');
+      },
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -41,11 +47,13 @@ void main() {
       'intention-started',
       'reflection-started',
       'focus-started',
+      'weather-started',
     ]);
     taskGate.complete();
     intentionGate.complete();
     reflectionGate.complete();
     focusGate.complete();
+    weatherGate.complete();
     await refresh;
     expect(
         calls,
@@ -58,6 +66,22 @@ void main() {
           'intention-completed',
           'reflection-completed',
           'focus-completed',
+          'weather-completed',
         ]));
+  });
+
+  test('Today data refresh completes when weather refresh fails', () async {
+    final calls = <String>[];
+    final refresh = refreshTodayData(
+      loadTasks: () async => calls.add('tasks'),
+      loadIntention: () async => calls.add('intention'),
+      loadReflection: () async => calls.add('reflection'),
+      loadFocusSummary: () async => calls.add('focus'),
+      loadWeather: () async => throw StateError('weather unavailable'),
+    );
+
+    await refresh;
+    expect(calls,
+        containsAll(<String>['tasks', 'intention', 'reflection', 'focus']));
   });
 }

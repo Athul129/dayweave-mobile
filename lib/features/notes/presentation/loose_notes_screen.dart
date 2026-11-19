@@ -9,6 +9,7 @@ import '../../../repositories/note_attachment_repository.dart';
 import '../application/notes_controller.dart';
 import '../application/note_media_preparation.dart';
 import 'note_attachment_gallery.dart';
+import '../../weather/presentation/weather_banner.dart';
 
 class LooseNotesScreen extends ConsumerStatefulWidget {
   const LooseNotesScreen({super.key});
@@ -105,6 +106,8 @@ class _LooseNotesScreenState extends ConsumerState<LooseNotesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const WeatherBanner(insetHorizontally: false),
+                const SizedBox(height: DayweaveSpacing.sm),
                 _hero(context),
                 const SizedBox(height: 20),
                 _notebook(context, state),

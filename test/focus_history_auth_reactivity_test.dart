@@ -8,6 +8,8 @@ import 'package:dayweave_mobile/models/domain_models.dart';
 import 'package:dayweave_mobile/repositories/focus_repository.dart';
 import 'package:dayweave_mobile/services/auth_service.dart';
 import 'package:dayweave_mobile/services/providers.dart';
+import 'package:dayweave_mobile/services/location_service.dart';
+import 'package:dayweave_mobile/services/weather_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,6 +56,23 @@ class _FakeFocusRepository implements FocusRepository {
     Map<String, dynamic> draft,
   ) =>
       throw UnimplementedError();
+}
+
+class _TestLocationService implements LocationService {
+  @override
+  Future<WeatherCoordinates> getCurrentLocation() async =>
+      const WeatherCoordinates(latitude: 1, longitude: 2);
+}
+
+class _TestWeatherService implements WeatherService {
+  @override
+  Future<WeatherSnapshot> fetchCurrent(WeatherCoordinates coordinates) async =>
+      WeatherSnapshot(
+        temperatureCelsius: 20,
+        weatherCode: 0,
+        isDay: true,
+        validAt: DateTime.now().toUtc(),
+      );
 }
 
 User _user(String id) => User.fromJson({
@@ -149,6 +168,8 @@ void main() {
           authServiceProvider.overrideWithValue(auth),
           authStateProvider.overrideWith((ref) => auth.authStateChanges),
           focusRepositoryProvider.overrideWithValue(repository),
+          locationServiceProvider.overrideWithValue(_TestLocationService()),
+          weatherServiceProvider.overrideWithValue(_TestWeatherService()),
           focusHistoryProvider.overrideWith(
             () => FocusHistoryController(
               clock: () => DateTime(2026, 10, 14, 12),

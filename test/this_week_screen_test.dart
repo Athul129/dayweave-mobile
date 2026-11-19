@@ -14,6 +14,25 @@ import 'package:dayweave_mobile/features/week/presentation/this_week_screen.dart
 import 'package:dayweave_mobile/models/task.dart';
 import 'package:dayweave_mobile/repositories/task_repository.dart';
 import 'package:dayweave_mobile/services/providers.dart';
+import 'package:dayweave_mobile/services/location_service.dart';
+import 'package:dayweave_mobile/services/weather_service.dart';
+
+class _TestWeatherService implements WeatherService {
+  @override
+  Future<WeatherSnapshot> fetchCurrent(WeatherCoordinates coordinates) async =>
+      WeatherSnapshot(
+        temperatureCelsius: 20,
+        weatherCode: 0,
+        isDay: true,
+        validAt: DateTime.now().toUtc(),
+      );
+}
+
+class _TestLocationService implements LocationService {
+  @override
+  Future<WeatherCoordinates> getCurrentLocation() async =>
+      const WeatherCoordinates(latitude: 1, longitude: 2);
+}
 
 Task _task(String id, String date, {bool done = false}) => Task(
       id: id,
@@ -101,6 +120,8 @@ Widget _app(_FakeRepository repository) => ProviderScope(
         taskRepositoryProvider.overrideWithValue(repository),
         currentUserIdProvider.overrideWithValue('user-1'),
         preferencesStorageProvider.overrideWithValue(_FakePreferencesStorage()),
+        locationServiceProvider.overrideWithValue(_TestLocationService()),
+        weatherServiceProvider.overrideWithValue(_TestWeatherService()),
       ],
       child: const MaterialApp(home: Scaffold(body: ThisWeekScreen())),
     );
@@ -112,6 +133,8 @@ Widget _appWithFocus(_FakeRepository repository, Task task,
         taskRepositoryProvider.overrideWithValue(repository),
         currentUserIdProvider.overrideWithValue('user-1'),
         preferencesStorageProvider.overrideWithValue(_FakePreferencesStorage()),
+        locationServiceProvider.overrideWithValue(_TestLocationService()),
+        weatherServiceProvider.overrideWithValue(_TestWeatherService()),
       ],
       child: _FocusHarness(task: task, paused: paused, completed: completed),
     );
@@ -196,8 +219,8 @@ List<LocalDate> _currentWeekDates() {
   return List<LocalDate>.generate(7, monday.addDays);
 }
 
-Future<_FakeRepository> _openMoveSheet(
-    WidgetTester tester, String todayDate, {double height = 600}) async {
+Future<_FakeRepository> _openMoveSheet(WidgetTester tester, String todayDate,
+    {double height = 600}) async {
   tester.view.physicalSize = Size(800, height);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -218,7 +241,7 @@ void main() {
   testWidgets('shows loading, then tasks and weekly summary', (tester) async {
     final repository = _FakeRepository([_task('today', today)]);
     await tester.pumpWidget(_app(repository));
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNWidgets(2));
     await _settle(tester);
     expect(find.text('today'), findsOneWidget);
     expect(find.text('0% clear'), findsOneWidget);
@@ -233,7 +256,9 @@ void main() {
     expect(find.text('Your week could not be loaded.'), findsOneWidget);
     repository.fetchError = null;
     repository.tasks = [_task('recovered', today)];
-    await tester.tap(find.text('Retry'));
+    final retry = find.text('Retry');
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
     await _settle(tester);
     expect(find.text('recovered'), findsOneWidget);
   });

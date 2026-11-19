@@ -10,6 +10,8 @@ import '../../focus_history/presentation/focus_history_screen.dart';
 import '../../week/presentation/this_week_screen.dart';
 import '../../account/presentation/account_avatar_action.dart';
 import '../../preferences/presentation/preferences_sheet.dart';
+import '../../weather/application/weather_controller.dart';
+import '../../weather/application/weather_lifecycle_coordinator.dart';
 
 class MobileShell extends ConsumerStatefulWidget {
   const MobileShell({super.key});
@@ -19,12 +21,27 @@ class MobileShell extends ConsumerStatefulWidget {
 
 class _MobileShellState extends ConsumerState<MobileShell> {
   int index = 0;
+  late final WeatherLifecycleCoordinator _weatherLifecycle;
   static const destinations = [
     ('Today', 'Your daily route will live here.'),
     ('This Week', 'Monday–Sunday planning will live here.'),
     ('Loose Notes', 'Your quiet notebook will live here.'),
     ('Focus History', 'Completed focus sessions will live here.'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _weatherLifecycle = WeatherLifecycleCoordinator(
+      controller: ref.read(weatherProvider.notifier),
+    )..start();
+  }
+
+  @override
+  void dispose() {
+    _weatherLifecycle.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,18 +82,24 @@ class _MobileShellState extends ConsumerState<MobileShell> {
           ),
         ],
       ),
-      body: index == 0
-          ? const TodayScreen()
-          : index == 1
-              ? const ThisWeekScreen()
-              : index == 2
-                  ? const LooseNotesScreen()
-                  : index == 3
-                      ? const FocusHistoryScreen()
-                      : FeaturePlaceholder(
-                          title: destination.$1,
-                          description: destination.$2,
-                        ),
+      body: Column(
+        children: [
+          Expanded(
+            child: index == 0
+                ? const TodayScreen()
+                : index == 1
+                    ? const ThisWeekScreen()
+                    : index == 2
+                        ? const LooseNotesScreen()
+                        : index == 3
+                            ? const FocusHistoryScreen()
+                            : FeaturePlaceholder(
+                                title: destination.$1,
+                                description: destination.$2,
+                              ),
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBarTheme(
         data: Theme.of(context).navigationBarTheme.copyWith(
               backgroundColor: DayweaveColors.paper,

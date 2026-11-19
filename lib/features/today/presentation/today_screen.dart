@@ -16,19 +16,32 @@ import 'widgets/today_task_card.dart';
 import 'widgets/today_task_form.dart';
 import 'widgets/today_reflection_card.dart';
 import 'widgets/today_reflection_screen.dart';
+import '../../weather/presentation/weather_banner.dart';
+import '../../weather/application/weather_controller.dart';
 
 Future<void> refreshTodayData({
   required Future<void> Function() loadTasks,
   required Future<void> Function() loadIntention,
   required Future<void> Function() loadReflection,
   required Future<void> Function() loadFocusSummary,
+  required Future<void> Function() loadWeather,
 }) =>
     Future.wait([
       loadTasks(),
       loadIntention(),
       loadReflection(),
       loadFocusSummary(),
+      _refreshWeatherSafely(loadWeather),
     ]);
+
+Future<void> _refreshWeatherSafely(Future<void> Function() loadWeather) async {
+  try {
+    await loadWeather();
+  } catch (_) {
+    // WeatherController retains the error in its own state. A weather
+    // failure must not fail the rest of Today's refresh operation.
+  }
+}
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -78,11 +91,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             loadTasks: ref.read(todayControllerProvider.notifier).load,
             loadIntention: ref.read(todayIntentionProvider.notifier).load,
             loadReflection: ref.read(todayReflectionProvider.notifier).load,
-            loadFocusSummary:
-                ref.read(todayFocusSummaryProvider.notifier).load),
+            loadFocusSummary: ref.read(todayFocusSummaryProvider.notifier).load,
+            loadWeather: ref.read(weatherProvider.notifier).load),
         child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
+              const SliverToBoxAdapter(child: WeatherBanner()),
               SliverToBoxAdapter(
                   child: _TodayHeader(
                       date: state.date, onClearDay: _requestClearDay)),

@@ -7,6 +7,7 @@ import '../../../features/auth/application/current_user_provider.dart';
 import '../../../models/domain_models.dart';
 import '../../../core/theme/dayweave_theme.dart';
 import '../application/focus_history_controller.dart';
+import '../../weather/presentation/weather_banner.dart';
 
 class FocusHistoryScreen extends ConsumerStatefulWidget {
   const FocusHistoryScreen({super.key});
@@ -54,6 +55,8 @@ class _FocusHistoryScreenState extends ConsumerState<FocusHistoryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const WeatherBanner(insetHorizontally: false),
+              const SizedBox(height: DayweaveSpacing.sm),
               _hero(context),
               const SizedBox(height: 16),
               _rangeSelector(context, history),

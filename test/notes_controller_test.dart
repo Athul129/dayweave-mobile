@@ -13,6 +13,8 @@ import 'package:dayweave_mobile/services/providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dayweave_mobile/services/location_service.dart';
+import 'package:dayweave_mobile/services/weather_service.dart';
 
 final _testUserIdProvider = StateProvider<String?>((ref) => 'user-1');
 
@@ -703,6 +705,7 @@ void main() {
     expect(find.text('Your notes could not be loaded. Please try again.'),
         findsOneWidget);
     repository.fetchError = null;
+    await tester.ensureVisible(find.text('Retry'));
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(find.text('Nothing loose yet.'), findsOneWidget);
@@ -800,6 +803,7 @@ void main() {
     await tester.enterText(
         find.byKey(const Key('notes-search-field')), 'edited');
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edited note'));
     await tester.tap(find.text('Edited note'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Delete note'));
@@ -861,8 +865,27 @@ Widget _notesApp(
           attachmentRepository ?? _FakeNoteAttachmentRepository(),
         ),
         currentUserIdProvider.overrideWith((ref) => 'user-1'),
+        locationServiceProvider.overrideWithValue(_TestLocationService()),
+        weatherServiceProvider.overrideWithValue(_TestWeatherService()),
       ],
       child: const MaterialApp(
         home: Scaffold(body: LooseNotesScreen()),
       ),
     );
+
+class _TestLocationService implements LocationService {
+  @override
+  Future<WeatherCoordinates> getCurrentLocation() async =>
+      const WeatherCoordinates(latitude: 1, longitude: 2);
+}
+
+class _TestWeatherService implements WeatherService {
+  @override
+  Future<WeatherSnapshot> fetchCurrent(WeatherCoordinates coordinates) async =>
+      WeatherSnapshot(
+        temperatureCelsius: 20,
+        weatherCode: 0,
+        isDay: true,
+        validAt: DateTime.now().toUtc(),
+      );
+}
