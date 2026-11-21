@@ -72,16 +72,31 @@ class _LooseNotesScreenState extends ConsumerState<LooseNotesScreen> {
         ? null
         : _findNote(notesState.notes, _selectedNoteId!);
 
+    Widget content;
     if (_deleteConfirmationOpen && selected != null) {
-      return _deleteConfirmation(context, notesState, selected);
+      content = _deleteConfirmation(context, notesState, selected);
+    } else if (_page == _NotesPage.reader && selected != null) {
+      content = _reader(context, selected, notesState);
+    } else if (_page == _NotesPage.editor) {
+      content = _editor(context, notesState);
+    } else {
+      content = _list(context, notesState);
     }
-    if (_page == _NotesPage.reader && selected != null) {
-      return _reader(context, selected, notesState);
-    }
-    if (_page == _NotesPage.editor) {
-      return _editor(context, notesState);
-    }
-    return _list(context, notesState);
+
+    return PopScope<void>(
+      canPop: _page == _NotesPage.list && !_deleteConfirmationOpen,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_deleteConfirmationOpen) {
+          setState(() => _deleteConfirmationOpen = false);
+        } else if (_page == _NotesPage.editor) {
+          _cancelEditor();
+        } else if (_page == _NotesPage.reader) {
+          _backToList();
+        }
+      },
+      child: content,
+    );
   }
 
   Note? _findNote(List<Note> notes, String id) {

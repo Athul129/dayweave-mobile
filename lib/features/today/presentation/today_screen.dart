@@ -321,7 +321,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   void _openReflection(TodaySelectors selectors, String intention) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
+    Navigator.of(context, rootNavigator: true).push(MaterialPageRoute<void>(
       builder: (_) => TodayReflectionScreen(
         intention: intention,
         completedCount: selectors.completedCount,
@@ -332,7 +332,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   void _openFocusPreview(Task? task) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
+    Navigator.of(context, rootNavigator: true).push(MaterialPageRoute<void>(
       builder: (_) => FocusScreen(task: task),
     ));
   }

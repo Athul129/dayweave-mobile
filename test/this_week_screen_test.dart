@@ -346,14 +346,23 @@ void main() {
 
   testWidgets('valid future-date selection updates the repository',
       (tester) async {
-    final repository = await _openMoveSheet(tester, today, height: 1000);
+    final repository = await _openMoveSheet(tester, today);
     final target = LocalDate.today().addDays(1);
     final sheet = find.byType(BottomSheet);
     final destinationText =
         find.descendant(of: sheet, matching: find.text(_dateLabel(target)));
+    final scrollable = _sheetScrollable(sheet);
+    expect(scrollable, findsOneWidget);
+    await tester.scrollUntilVisible(destinationText, 80,
+        scrollable: scrollable);
     final destinationTile =
         find.ancestor(of: destinationText, matching: find.byType(ListTile));
     expect(destinationTile, findsOneWidget);
+    await Scrollable.ensureVisible(
+      tester.element(destinationTile),
+      alignment: 0.5,
+    );
+    await tester.pump();
     await tester.tap(destinationTile);
     await tester.pumpAndSettle();
     expect(repository.updateCalls, 1);
@@ -363,14 +372,23 @@ void main() {
 
   testWidgets('successful movement displays the task on its destination date',
       (tester) async {
-    final repository = await _openMoveSheet(tester, today, height: 1000);
+    final repository = await _openMoveSheet(tester, today);
     final target = LocalDate.today().addDays(1);
     final sheet = find.byType(BottomSheet);
     final destinationText =
         find.descendant(of: sheet, matching: find.text(_dateLabel(target)));
+    final scrollable = _sheetScrollable(sheet);
+    expect(scrollable, findsOneWidget);
+    await tester.scrollUntilVisible(destinationText, 80,
+        scrollable: scrollable);
     final destinationTile =
         find.ancestor(of: destinationText, matching: find.byType(ListTile));
     expect(destinationTile, findsOneWidget);
+    await Scrollable.ensureVisible(
+      tester.element(destinationTile),
+      alignment: 0.5,
+    );
+    await tester.pump();
     await tester.tap(destinationTile);
     await tester.pumpAndSettle();
     expect(find.byType(BottomSheet), findsNothing);

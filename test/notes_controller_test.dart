@@ -815,6 +815,59 @@ void main() {
     expect(find.text('Note deleted'), findsOneWidget);
   });
 
+  testWidgets('Android Back returns from editor to its note reader',
+      (tester) async {
+    final existing = _note(
+      'existing',
+      'user-1',
+      'Keep my note',
+      'Text remains safe.',
+      DateTime.utc(2026, 1, 1),
+    );
+    final repository = _FakeNoteRepository()
+      ..notesByUser['user-1'] = [existing];
+    await tester.pumpWidget(_notesApp(repository));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Keep my note'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit note'));
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Text remains safe.'), findsOneWidget);
+    expect(find.text('Edit note'), findsOneWidget);
+    expect(find.byKey(const Key('note-title-field')), findsNothing);
+  });
+
+  testWidgets('Android Back returns from note reader to the list',
+      (tester) async {
+    final existing = _note(
+      'existing',
+      'user-1',
+      'Keep my note',
+      'Text remains safe.',
+      DateTime.utc(2026, 1, 1),
+    );
+    final repository = _FakeNoteRepository()
+      ..notesByUser['user-1'] = [existing];
+    await tester.pumpWidget(_notesApp(repository));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Keep my note'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const Key('notes-search-field')), findsOneWidget);
+    expect(find.text('Keep my note'), findsOneWidget);
+    expect(find.text('Edit note'), findsNothing);
+  });
+
   testWidgets('failed attachment cleanup keeps note and shows retry guidance', (
     tester,
   ) async {

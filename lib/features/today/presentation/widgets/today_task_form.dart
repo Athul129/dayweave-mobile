@@ -34,6 +34,7 @@ Future<Task?> showTodayTaskFormSheet({
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      useRootNavigator: true,
       backgroundColor: DayweaveColors.paper,
       builder: (context) => TodayTaskForm(
         today: today,

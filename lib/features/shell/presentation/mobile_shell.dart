@@ -1,33 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/dayweave_theme.dart';
-import '../../../widgets/feature_placeholder.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../today/presentation/today_screen.dart';
-import '../../notes/presentation/loose_notes_screen.dart';
-import '../../focus_history/presentation/focus_history_screen.dart';
-import '../../week/presentation/this_week_screen.dart';
 import '../../account/presentation/account_avatar_action.dart';
 import '../../preferences/presentation/preferences_sheet.dart';
 import '../../weather/application/weather_controller.dart';
 import '../../weather/application/weather_lifecycle_coordinator.dart';
 
 class MobileShell extends ConsumerStatefulWidget {
-  const MobileShell({super.key});
+  const MobileShell({required this.navigationShell, super.key});
+
+  final StatefulNavigationShell navigationShell;
   @override
   ConsumerState<MobileShell> createState() => _MobileShellState();
 }
 
 class _MobileShellState extends ConsumerState<MobileShell> {
-  int index = 0;
+  int get index => widget.navigationShell.currentIndex;
   late final WeatherLifecycleCoordinator _weatherLifecycle;
-  static const destinations = [
-    ('Today', 'Your daily route will live here.'),
+  bool _backHandling = false;
+  bool _logoutDialogOpen = false;
+  static const destinations = ['Today', 'Week', 'Notes', 'History'];
+  /* legacy placeholder removed
     ('This Week', 'Monday–Sunday planning will live here.'),
-    ('Loose Notes', 'Your quiet notebook will live here.'),
-    ('Focus History', 'Completed focus sessions will live here.'),
-  ];
+    legacy placeholder removed */
 
   @override
   void initState() {
@@ -45,105 +43,122 @@ class _MobileShellState extends ConsumerState<MobileShell> {
 
   @override
   Widget build(BuildContext context) {
-    final destination = destinations[index];
-    return Scaffold(
-      backgroundColor: DayweaveColors.paper,
-      appBar: AppBar(
-        toolbarHeight: 68,
-        titleSpacing: DayweaveSpacing.lg,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              'assets/images/dayweave-mark.webp',
-              width: 30,
-              height: 30,
-            ),
-            const SizedBox(width: DayweaveSpacing.sm),
-            Text(
-              'dayweave',
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineSmall
-                  ?.copyWith(fontSize: 24),
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && !_backHandling) {
+          _handleSystemBack();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: DayweaveColors.paper,
+        appBar: AppBar(
+          toolbarHeight: 68,
+          titleSpacing: DayweaveSpacing.lg,
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/images/dayweave-mark.webp',
+                width: 30,
+                height: 30,
+              ),
+              const SizedBox(width: DayweaveSpacing.sm),
+              Text(
+                'dayweave',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(fontSize: 24),
+              ),
+            ],
+          ),
+          actions: [
+            IconButton(
+                tooltip: 'Preferences',
+                onPressed: () => showPreferencesSheet(context),
+                icon: const Icon(Icons.tune_outlined)),
+            AccountAvatarAction(onSignOut: _showSignOutConfirmation),
+            IconButton(
+              tooltip: 'Sign out',
+              onPressed: () => _signOut(context),
+              icon: const Icon(Icons.logout),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-              tooltip: 'Preferences',
-              onPressed: () => showPreferencesSheet(context),
-              icon: const Icon(Icons.tune_outlined)),
-          AccountAvatarAction(onSignOut: _showSignOutConfirmation),
-          IconButton(
-            tooltip: 'Sign out',
-            onPressed: () => _signOut(context),
-            icon: const Icon(Icons.logout),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: index == 0
-                ? const TodayScreen()
-                : index == 1
-                    ? const ThisWeekScreen()
-                    : index == 2
-                        ? const LooseNotesScreen()
-                        : index == 3
-                            ? const FocusHistoryScreen()
-                            : FeaturePlaceholder(
-                                title: destination.$1,
-                                description: destination.$2,
-                              ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBarTheme(
-        data: Theme.of(context).navigationBarTheme.copyWith(
-              backgroundColor: DayweaveColors.paper,
-              surfaceTintColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              indicatorColor: DayweaveColors.sage.withValues(alpha: .7),
-              elevation: 0,
-            ),
-        child: NavigationBar(
-          height: 80,
-          selectedIndex: index,
-          onDestinationSelected: (value) => setState(() => index = value),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.today_outlined),
-              selectedIcon: Icon(Icons.today),
-              label: 'Today',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.calendar_view_week_outlined),
-              selectedIcon: Icon(Icons.calendar_view_week),
-              label: 'Week',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.inbox_outlined),
-              selectedIcon: Icon(Icons.inbox),
-              label: 'Notes',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.timer_outlined),
-              selectedIcon: Icon(Icons.timer),
-              label: 'History',
+        body: Column(
+          children: [
+            Expanded(
+              child: widget.navigationShell,
             ),
           ],
+        ),
+        bottomNavigationBar: NavigationBarTheme(
+          data: Theme.of(context).navigationBarTheme.copyWith(
+                backgroundColor: DayweaveColors.paper,
+                surfaceTintColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                indicatorColor: DayweaveColors.sage.withValues(alpha: .7),
+                elevation: 0,
+              ),
+          child: NavigationBar(
+            height: 80,
+            selectedIndex: index,
+            onDestinationSelected: widget.navigationShell.goBranch,
+            destinations: [
+              NavigationDestination(
+                icon: Icon(Icons.today_outlined),
+                selectedIcon: Icon(Icons.today),
+                label: destinations[0],
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.calendar_view_week_outlined),
+                selectedIcon: Icon(Icons.calendar_view_week),
+                label: destinations[1],
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.inbox_outlined),
+                selectedIcon: Icon(Icons.inbox),
+                label: destinations[2],
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.timer_outlined),
+                selectedIcon: Icon(Icons.timer),
+                label: destinations[3],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  Future<void> _handleSystemBack() async {
+    if (_backHandling || !mounted) return;
+    _backHandling = true;
+    try {
+      final branchNavigator = widget
+          .navigationShell.route.branches[index].navigatorKey.currentState;
+      if (branchNavigator != null && await branchNavigator.maybePop()) return;
+      if (!mounted) return;
+
+      if (index != 0) {
+        widget.navigationShell.goBranch(0);
+      } else {
+        await _signOut(context);
+      }
+    } finally {
+      _backHandling = false;
+    }
+  }
+
   Future<void> _signOut(BuildContext context) async {
+    if (_logoutDialogOpen) return;
+    _logoutDialogOpen = true;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sign out?'),
+        title: const Text('Do you want to logout?'),
         content: const Text('You can sign back in whenever you are ready.'),
         actions: [
           TextButton(
@@ -152,13 +167,17 @@ class _MobileShellState extends ConsumerState<MobileShell> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sign out'),
+            child: const Text('Logout'),
           ),
         ],
       ),
     );
-    if (confirmed == true && mounted) {
-      await ref.read(authControllerProvider.notifier).signOut();
+    try {
+      if (confirmed == true && mounted) {
+        await ref.read(authControllerProvider.notifier).signOut();
+      }
+    } finally {
+      _logoutDialogOpen = false;
     }
   }
 

@@ -31,6 +31,8 @@ final authSessionProvider = Provider<AuthSessionState>((ref) {
   return auth.when(
     loading: () => const AuthInitializing(),
     error: (error, stackTrace) => AuthSessionError(error),
-    data: (state) => state.session == null ? const AuthSignedOut() : AuthSignedIn(state.session!),
+    data: (state) => state.session == null
+        ? const AuthSignedOut()
+        : AuthSignedIn(state.session!),
   );
 });
